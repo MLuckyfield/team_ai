@@ -1,0 +1,31 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy crawl4ai source code
+COPY crawl4ai-source ./crawl4ai-source
+
+# Install Python dependencies
+WORKDIR /app/crawl4ai-source
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
+RUN pip install -e .
+
+# Install playwright
+RUN playwright install chromium
+RUN playwright install-deps
+
+# Expose port
+EXPOSE 11235
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+
+# Start crawl4ai
+CMD ["python", "-m", "crawl4ai.async_crawler_strategy"] 

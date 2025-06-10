@@ -1,0 +1,24 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy n8n source code
+COPY n8n-source ./n8n-source
+
+# Install pnpm
+RUN npm install -g pnpm@10.11.1
+
+# Build n8n
+WORKDIR /app/n8n-source
+RUN pnpm install && pnpm build
+
+# Expose port
+EXPOSE 5678
+
+# Set environment variables
+ENV N8N_HOST=0.0.0.0
+ENV N8N_PORT=5678
+ENV NODE_ENV=production
+
+# Start n8n
+CMD ["node", "packages/cli/dist/index.js", "start"] 

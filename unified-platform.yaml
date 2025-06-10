@@ -1,18 +1,12 @@
 name: unified-platform
 services:
-  # n8n Service (built from source in your repo)
+  # n8n Service (using Dockerfile)
   - name: n8n
     source_dir: /
     github:
       repo: MLuckyfield/team_ai
       branch: main
-    build_command: |
-      cd n8n-source
-      npm install -g pnpm@10.11.1
-      pnpm install
-      pnpm build
-    run_command: cd n8n-source && node packages/cli/dist/index.js start
-    environment_slug: node-js
+    dockerfile_path: Dockerfile.n8n
     instance_count: 1
     instance_size_slug: basic-s
     http_port: 5678
@@ -25,23 +19,14 @@ services:
         value: 0.0.0.0
       - key: N8N_PORT
         value: "5678"
-      - key: N8N_EDITOR_BASE_URL
-        value: https://${APP_DOMAIN}/n8n/
 
-  # Crawl4AI Service (built from source in your repo)
+  # Crawl4AI Service (using Dockerfile)
   - name: crawl4ai
     source_dir: /
     github:
       repo: MLuckyfield/team_ai
       branch: main
-    build_command: |
-      cd crawl4ai-source
-      pip install --upgrade pip
-      pip install -r requirements.txt
-      pip install -e .
-      playwright install chromium
-    run_command: cd crawl4ai-source && python -m crawl4ai.async_crawler_strategy
-    environment_slug: python
+    dockerfile_path: Dockerfile.crawl4ai
     instance_count: 1
     instance_size_slug: basic-s
     http_port: 11235
