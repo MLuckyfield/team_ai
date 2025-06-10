@@ -12,5 +12,10 @@ services:
     instance_count: 1
     instance_size_slug: basic-xxs
     http_port: 8080
-routes:
-  - path: / 
+ingress:
+  rules:
+    - match:
+        path:
+          prefix: /
+      component:
+        name: landing 
