@@ -7,6 +7,10 @@ RUN apt-get update && apt-get install -y \
     nginx \
     && rm -rf /var/lib/apt/lists/*
 
+# Create necessary directories and set permissions
+RUN mkdir -p /var/log/supervisor /var/run/supervisor \
+    && chmod 755 /var/log/supervisor /var/run/supervisor
+
 WORKDIR /app
 
 # Copy source code
@@ -24,6 +28,11 @@ RUN npm install
 COPY nginx.minimal.conf /etc/nginx/nginx.conf
 COPY supervisord.minimal.conf /etc/supervisor/conf.d/supervisord.conf
 
+# Create nginx directories and fix permissions
+RUN mkdir -p /var/log/nginx /var/lib/nginx/body /var/lib/nginx/fastcgi \
+    && chown -R www-data:www-data /var/log/nginx /var/lib/nginx \
+    && chmod 755 /var/log/nginx
+
 # Expose ports
 EXPOSE 80 5678 8080
 
@@ -31,6 +40,10 @@ EXPOSE 80 5678 8080
 ENV N8N_HOST=0.0.0.0
 ENV N8N_PORT=5678
 ENV NODE_ENV=production
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
 
 # Start supervisor
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 
