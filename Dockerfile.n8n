@@ -2,6 +2,9 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Install system dependencies
+RUN apk add --no-cache git python3 make g++
+
 # Copy n8n source code
 COPY n8n-source ./n8n-source
 
@@ -20,5 +23,5 @@ ENV N8N_HOST=0.0.0.0
 ENV N8N_PORT=5678
 ENV NODE_ENV=production
 
-# Start n8n
-CMD ["node", "packages/cli/dist/index.js", "start"] 
+# Start n8n using the correct binary path
+CMD ["./packages/cli/bin/n8n", "start"] 
