@@ -1,0 +1,187 @@
+version: '3.8'
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  opensign_data:
+  n8n_data:
+  crawl4ai_data:
+
+services:
+  # Reverse Proxy (simplified for local development)
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik-local
+    restart: unless-stopped
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--log.level=INFO"
+    ports:
+      - "80:80"
+      - "8080:8080"  # Traefik dashboard at http://localhost:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - app-network
+
+  # Database
+  postgres:
+    image: postgres:15
+    container_name: postgres-local
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: opensign
+      POSTGRES_USER: ${DB_USER:-opensign_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-local_password_123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"  # Direct access for development
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-opensign_user} -d opensign"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: redis-local
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"  # Direct access for development
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MinIO (S3-compatible storage for local development)
+  minio:
+    image: minio/minio:latest
+    container_name: minio-local
+    restart: unless-stopped
+    environment:
+      MINIO_ACCESS_KEY: ${AWS_ACCESS_KEY_ID:-minioadmin}
+      MINIO_SECRET_KEY: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"  # MinIO API
+      - "9001:9001"  # MinIO Console at http://localhost:9001
+    volumes:
+      - opensign_data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # OpenSign Application
+  opensign:
+    build:
+      context: ./opensign
+      dockerfile: Dockerfile
+    container_name: opensign-local
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - DATABASE_URL=postgresql://${DB_USER:-opensign_user}:${DB_PASSWORD:-local_password_123}@postgres:5432/opensign
+      - REDIS_URL=redis://redis:6379
+      - PUBLIC_URL=http://localhost/opensign
+      - BASE_PATH=/opensign
+      # MinIO S3 Configuration
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-opensign-local}
+      - AWS_ENDPOINT_URL=http://minio:9000
+      - STORAGE_TYPE=s3
+    ports:
+      - "8001:3000"  # Direct access at http://localhost:8001
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.opensign-local.rule=Host(`localhost`) && PathPrefix(`/opensign`)"
+      - "traefik.http.routers.opensign-local.entrypoints=web"
+      - "traefik.http.middlewares.opensign-stripprefix.stripprefix.prefixes=/opensign"
+      - "traefik.http.routers.opensign-local.middlewares=opensign-stripprefix"
+      - "traefik.http.services.opensign-local.loadbalancer.server.port=3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  # n8n Workflow Automation
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n-local
+    restart: unless-stopped
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_EDITOR_BASE_URL=http://localhost:5678/
+      - DB_TYPE=sqlite
+      - N8N_USER_FOLDER=/home/node/.n8n
+      - N8N_SECURE_COOKIE=false
+    volumes:
+      - n8n_data:/home/node/.n8n
+    ports:
+      - "5678:5678"  # Direct access at http://localhost:5678
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n-local.rule=Host(`localhost`) && PathPrefix(`/n8n`)"
+      - "traefik.http.routers.n8n-local.entrypoints=web"
+      - "traefik.http.middlewares.n8n-stripprefix.stripprefix.prefixes=/n8n"
+      - "traefik.http.routers.n8n-local.middlewares=n8n-stripprefix"
+      - "traefik.http.services.n8n-local.loadbalancer.server.port=5678"
+    networks:
+      - app-network
+
+  # Crawl4AI Service
+  crawl4ai:
+    image: unclecode/crawl4ai:latest
+    container_name: crawl4ai-local
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-sk-dummy-key-for-local-testing}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-sk-ant-dummy-key-for-local-testing}
+      - LOG_LEVEL=INFO
+    volumes:
+      - crawl4ai_data:/app/data
+    shm_size: 2g
+    ports:
+      - "11235:11235"  # Direct access at http://localhost:11235
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.crawl4ai-local.rule=Host(`localhost`) && PathPrefix(`/crawl4ai`)"
+      - "traefik.http.routers.crawl4ai-local.entrypoints=web"
+      - "traefik.http.middlewares.crawl4ai-stripprefix.stripprefix.prefixes=/crawl4ai"
+      - "traefik.http.routers.crawl4ai-local.middlewares=crawl4ai-stripprefix"
+      - "traefik.http.services.crawl4ai-local.loadbalancer.server.port=11235"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
