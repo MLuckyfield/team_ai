@@ -1,0 +1,26 @@
+name: crawl4ai-api
+services:
+- name: crawl4ai-web
+  image:
+    registry_type: DOCKER_HUB
+    registry: unclecode/crawl4ai
+    tag: latest
+  instance_count: 1
+  instance_size_slug: basic-s
+  routes:
+  - path: /
+  envs:
+  - key: REDIS_URL
+    value: ${crawl4ai-redis.REDIS_URL}
+  - key: OPENAI_API_KEY
+    value: ${OPENAI_API_KEY}
+  - key: ANTHROPIC_API_KEY
+    value: ${ANTHROPIC_API_KEY}
+  - key: LOG_LEVEL
+    value: INFO
+
+databases:
+- name: crawl4ai-redis
+  engine: REDIS
+  size: basic-xs
+  num_nodes: 1 

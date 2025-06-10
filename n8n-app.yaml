@@ -1,0 +1,29 @@
+name: n8n-workflow
+services:
+- name: n8n-web
+  image:
+    registry_type: DOCKER_HUB
+    registry: docker.n8n.io/n8nio/n8n
+    tag: latest
+  instance_count: 1
+  instance_size_slug: basic-xs
+  routes:
+  - path: /
+  envs:
+  - key: N8N_HOST
+    value: 0.0.0.0
+  - key: N8N_PORT
+    value: "8080"
+  - key: N8N_PROTOCOL
+    value: https
+  - key: WEBHOOK_URL
+    value: https://${APP_DOMAIN}/
+  - key: DB_TYPE
+    value: sqlite
+  - key: N8N_USER_FOLDER
+    value: /home/node/.n8n
+
+volumes:
+- name: n8n-data
+  size: 5GB
+  mount_path: /home/node/.n8n 
