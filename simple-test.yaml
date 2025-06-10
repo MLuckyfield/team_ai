@@ -6,26 +6,7 @@ services:
     github:
       repo: MLuckyfield/team_ai
       branch: main
-    build_command: |
-      mkdir -p public
-      echo '<!DOCTYPE html>
-      <html>
-      <head>
-          <title>Unified Platform</title>
-          <style>
-              body { font-family: Arial, sans-serif; margin: 40px; background: #667eea; color: white; text-align: center; }
-              .container { max-width: 600px; margin: 0 auto; padding: 2rem; background: rgba(255,255,255,0.1); border-radius: 20px; }
-              h1 { font-size: 3rem; margin-bottom: 1rem; }
-          </style>
-      </head>
-      <body>
-          <div class="container">
-              <h1>🚀 Platform Online!</h1>
-              <p>Testing deployment...</p>
-              <p>If you can see this, the deployment is working!</p>
-          </div>
-      </body>
-      </html>' > public/index.html
+    build_command: mkdir -p public && cp index.html public/
     run_command: python3 -m http.server 8080 --directory public
     environment_slug: python
     instance_count: 1
