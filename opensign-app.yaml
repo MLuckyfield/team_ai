@@ -1,18 +1,13 @@
-name: opensign
+name: opensign-app
 services:
-- name: opensign-web
-  source_dir: /opensign
-  github:
-    repo: MLuckyfield/team_ai
-    branch: main
-  build_command: |
-    cd apps/OpenSign
-    npm install
-    npm run build
-  run_command: serve -s build -l 8080
-  environment_slug: node-js
+- name: opensign
+  image:
+    registry_type: DOCKER_HUB
+    repository: opensignlabs/opensign
+    tag: latest
   instance_count: 1
-  instance_size_slug: basic-xxs
+  instance_size_slug: basic-s
+  http_port: 3000
   routes:
   - path: /
   envs:
@@ -20,12 +15,8 @@ services:
     value: production
   - key: DATABASE_URL
     value: ${opensign-db.DATABASE_URL}
-  - key: AWS_ACCESS_KEY_ID
-    value: ${AWS_ACCESS_KEY_ID}
-  - key: AWS_SECRET_ACCESS_KEY
-    value: ${AWS_SECRET_ACCESS_KEY}
-  - key: AWS_S3_BUCKET
-    value: ${AWS_S3_BUCKET}
+  - key: NEXT_PUBLIC_WEBAPP_URL
+    value: https://${APP_DOMAIN}
 
 databases:
 - name: opensign-db

@@ -1,0 +1,79 @@
+name: unified-platform
+services:
+  # OpenSign Service
+  - name: opensign
+    source_dir: /opensign
+    github:
+      repo: MLuckyfield/team_ai
+      branch: main
+    build_command: cd opensign && npm install && npm run build
+    run_command: cd opensign && npm start
+    environment_slug: node-js
+    instance_count: 1
+    instance_size_slug: basic-s
+    http_port: 3000
+    routes:
+      - path: /opensign
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: ${opensign-db.DATABASE_URL}
+
+  # n8n Service  
+  - name: n8n
+    source_dir: /n8n-source
+    github:
+      repo: MLuckyfield/team_ai
+      branch: main
+    build_command: cd n8n-source && npm install && npm run build
+    run_command: cd n8n-source && npm start
+    environment_slug: node-js
+    instance_count: 1
+    instance_size_slug: basic-s
+    http_port: 5678
+    routes:
+      - path: /n8n
+    envs:
+      - key: N8N_HOST
+        value: 0.0.0.0
+      - key: N8N_PORT
+        value: "5678"
+      - key: DB_TYPE
+        value: postgresdb
+      - key: DB_POSTGRESDB_HOST
+        value: ${n8n-db.HOSTNAME}
+      - key: DB_POSTGRESDB_PORT
+        value: ${n8n-db.PORT}
+      - key: DB_POSTGRESDB_USER
+        value: ${n8n-db.USERNAME}
+      - key: DB_POSTGRESDB_PASSWORD
+        value: ${n8n-db.PASSWORD}
+      - key: DB_POSTGRESDB_DATABASE
+        value: n8n
+
+  # Crawl4AI Service
+  - name: crawl4ai
+    source_dir: /crawl4ai-source
+    github:
+      repo: MLuckyfield/team_ai
+      branch: main
+    build_command: cd crawl4ai-source && pip install -r requirements.txt
+    run_command: cd crawl4ai-source && python -m crawl4ai.api_server --host 0.0.0.0 --port 8000
+    environment_slug: python
+    instance_count: 1
+    instance_size_slug: basic-s
+    http_port: 8000
+    routes:
+      - path: /crawl4ai
+
+databases:
+  - name: opensign-db
+    engine: PG
+    size: basic-xs
+    num_nodes: 1
+    
+  - name: n8n-db
+    engine: PG
+    size: basic-xs
+    num_nodes: 1 
