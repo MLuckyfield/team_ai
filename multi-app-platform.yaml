@@ -1,17 +1,11 @@
 name: multi-app-platform
 services:
-  # OpenSign Service
+  # OpenSign Service (using Docker image)
   - name: opensign
-    source_dir: /opensign
-    github:
-      repo: MLuckyfield/team_ai
-      branch: main
-    build_command: |
-      cd apps/OpenSign
-      npm install
-      npm run build
-    run_command: serve -s build -l 8080
-    environment_slug: node-js
+    image:
+      registry_type: DOCKER_HUB
+      registry: opensignlabs/opensign
+      tag: latest
     instance_count: 1
     instance_size_slug: basic-s
     routes:
@@ -29,6 +23,8 @@ services:
         value: ${AWS_S3_BUCKET}
       - key: PUBLIC_URL
         value: https://${APP_DOMAIN}/opensign
+      - key: BASE_PATH
+        value: /opensign
 
   # n8n Service
   - name: n8n
@@ -86,7 +82,7 @@ services:
       - key: LOG_LEVEL
         value: INFO
 
-  # Static Site for Root Path (Optional - Landing Page)
+  # Static Site for Root Path (Landing Page)
   - name: landing
     source_dir: /
     github:
@@ -100,29 +96,62 @@ services:
       <head>
           <title>Multi-App Platform</title>
           <style>
-              body { font-family: Arial, sans-serif; margin: 40px; }
-              .app-card { border: 1px solid #ddd; padding: 20px; margin: 20px 0; border-radius: 8px; }
-              .app-card h2 { color: #333; }
-              .app-card a { color: #0070f3; text-decoration: none; }
-              .app-card a:hover { text-decoration: underline; }
+              body { font-family: Arial, sans-serif; margin: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 100vh; }
+              .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+              h1 { text-align: center; font-size: 3rem; margin-bottom: 2rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+              .app-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 40px; }
+              .app-card { 
+                  background: rgba(255,255,255,0.1); 
+                  border: 1px solid rgba(255,255,255,0.2); 
+                  padding: 30px; 
+                  border-radius: 15px; 
+                  backdrop-filter: blur(10px);
+                  transition: transform 0.3s ease, box-shadow 0.3s ease;
+              }
+              .app-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+              .app-card h2 { color: #fff; margin-bottom: 15px; font-size: 1.5rem; }
+              .app-card p { color: rgba(255,255,255,0.8); margin-bottom: 20px; line-height: 1.6; }
+              .app-card a { 
+                  color: #fff; 
+                  text-decoration: none; 
+                  background: rgba(255,255,255,0.2);
+                  padding: 12px 24px;
+                  border-radius: 25px;
+                  border: 1px solid rgba(255,255,255,0.3);
+                  display: inline-block;
+                  font-weight: 500;
+                  transition: all 0.3s ease;
+              }
+              .app-card a:hover { 
+                  background: rgba(255,255,255,0.3);
+                  transform: scale(1.05);
+              }
+              .status { text-align: center; margin-top: 40px; color: rgba(255,255,255,0.7); }
           </style>
       </head>
       <body>
-          <h1>Multi-Application Platform</h1>
-          <div class="app-card">
-              <h2>OpenSign</h2>
-              <p>E-signature platform for document signing</p>
-              <a href="/opensign">Access OpenSign →</a>
-          </div>
-          <div class="app-card">
-              <h2>n8n</h2>
-              <p>Workflow automation platform</p>
-              <a href="/n8n">Access n8n →</a>
-          </div>
-          <div class="app-card">
-              <h2>Crawl4AI</h2>
-              <p>AI-powered web crawler service</p>
-              <a href="/crawl4ai">Access Crawl4AI →</a>
+          <div class="container">
+              <h1>🚀 Multi-Application Platform</h1>
+              <div class="app-grid">
+                  <div class="app-card">
+                      <h2>📝 OpenSign</h2>
+                      <p>E-signature platform for document signing and workflow automation</p>
+                      <a href="/opensign">Access OpenSign →</a>
+                  </div>
+                  <div class="app-card">
+                      <h2>🔄 n8n</h2>
+                      <p>Workflow automation platform for connecting apps and services</p>
+                      <a href="/n8n">Access n8n →</a>
+                  </div>
+                  <div class="app-card">
+                      <h2>🕷️ Crawl4AI</h2>
+                      <p>AI-powered web crawler service for intelligent data extraction</p>
+                      <a href="/crawl4ai">Access Crawl4AI →</a>
+                  </div>
+              </div>
+              <div class="status">
+                  <p>All services are running on Digital Ocean App Platform</p>
+              </div>
           </div>
       </body>
       </html>
