@@ -6,8 +6,12 @@ services:
     github:
       repo: MLuckyfield/team_ai
       branch: main
-    build_command: cd n8n-source && npm install -g pnpm && pnpm install && pnpm build
-    run_command: cd n8n-source && pnpm start
+    build_command: |
+      cd n8n-source
+      npm install -g pnpm@10.11.1
+      pnpm install
+      pnpm build
+    run_command: cd n8n-source && ./packages/cli/bin/n8n start
     environment_slug: node-js
     instance_count: 1
     instance_size_slug: basic-s
@@ -30,8 +34,13 @@ services:
     github:
       repo: MLuckyfield/team_ai
       branch: main
-    build_command: cd crawl4ai-source && pip install -r requirements.txt && pip install -e .
-    run_command: cd crawl4ai-source && python -m uvicorn crawl4ai.async_crawler_strategy:app --host 0.0.0.0 --port 11235
+    build_command: |
+      cd crawl4ai-source
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      pip install -e .
+      playwright install chromium
+    run_command: cd crawl4ai-source && python -m crawl4ai.async_crawler_strategy
     environment_slug: python
     instance_count: 1
     instance_size_slug: basic-s
