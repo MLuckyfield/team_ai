@@ -1,10 +1,14 @@
 {
   "name": "unified-platform",
   "version": "1.0.0",
-  "description": "Unified platform with n8n, crawl4ai, and opensign",
+  "description": "Unified platform for n8n, Crawl4AI, and OpenSign",
+  "main": "server.js",
   "scripts": {
-    "build": "echo 'Build completed'",
-    "start": "echo 'Ready to start services'"
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
   },
   "engines": {
     "node": ">=18.0.0"
