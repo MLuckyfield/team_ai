@@ -1,0 +1,2 @@
+# Root level requirements for buildpack detection
+# Actual dependencies are in crawl4ai-source/requirements.txt 

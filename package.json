@@ -1,0 +1,12 @@
+{
+  "name": "unified-platform",
+  "version": "1.0.0",
+  "description": "Unified platform with n8n, crawl4ai, and opensign",
+  "scripts": {
+    "build": "echo 'Build completed'",
+    "start": "echo 'Ready to start services'"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 

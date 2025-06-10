@@ -2,7 +2,7 @@ name: unified-platform
 services:
   # n8n Service (built from source in your repo)
   - name: n8n
-    source_dir: /n8n-source
+    source_dir: /
     github:
       repo: MLuckyfield/team_ai
       branch: main
@@ -11,7 +11,7 @@ services:
       npm install -g pnpm@10.11.1
       pnpm install
       pnpm build
-    run_command: cd n8n-source && ./packages/cli/bin/n8n start
+    run_command: cd n8n-source && node packages/cli/dist/index.js start
     environment_slug: node-js
     instance_count: 1
     instance_size_slug: basic-s
@@ -30,7 +30,7 @@ services:
 
   # Crawl4AI Service (built from source in your repo)
   - name: crawl4ai
-    source_dir: /crawl4ai-source
+    source_dir: /
     github:
       repo: MLuckyfield/team_ai
       branch: main
