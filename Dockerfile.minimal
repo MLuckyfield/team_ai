@@ -1,0 +1,36 @@
+FROM node:18-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    supervisor \
+    nginx \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy source code
+COPY server.js ./
+COPY package.json ./
+COPY index.html ./
+
+# Install n8n globally
+RUN npm install -g n8n@1.70.1
+
+# Install landing page dependencies
+RUN npm install
+
+# Copy config files
+COPY nginx.minimal.conf /etc/nginx/nginx.conf
+COPY supervisord.minimal.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Expose ports
+EXPOSE 80 5678 8080
+
+# Set environment variables
+ENV N8N_HOST=0.0.0.0
+ENV N8N_PORT=5678
+ENV NODE_ENV=production
+
+# Start supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 

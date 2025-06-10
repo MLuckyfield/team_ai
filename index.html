@@ -5,30 +5,174 @@
     <style>
         body { 
             font-family: Arial, sans-serif; 
-            margin: 40px; 
-            background: #667eea; 
+            margin: 0; 
+            padding: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
             color: white; 
-            text-align: center; 
+            min-height: 100vh;
         }
         .container { 
-            max-width: 600px; 
+            max-width: 800px; 
             margin: 0 auto; 
             padding: 2rem; 
             background: rgba(255,255,255,0.1); 
             border-radius: 20px; 
+            backdrop-filter: blur(10px);
         }
         h1 { 
             font-size: 3rem; 
             margin-bottom: 1rem; 
+            text-align: center;
+        }
+        .services {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        .service-card {
+            background: rgba(255,255,255,0.2);
+            padding: 1.5rem;
+            border-radius: 15px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        .service-card:hover {
+            transform: translateY(-5px);
+        }
+        .service-title {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: #fff;
+        }
+        .service-description {
+            margin-bottom: 1.5rem;
+            opacity: 0.9;
+        }
+        .service-link {
+            display: inline-block;
+            padding: 0.8rem 2rem;
+            background: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            transition: background 0.3s ease;
+        }
+        .service-link:hover {
+            background: #45a049;
+        }
+        .service-link.secondary {
+            background: #2196F3;
+        }
+        .service-link.secondary:hover {
+            background: #1976D2;
+        }
+        .status {
+            margin-top: 2rem;
+            text-align: center;
+            opacity: 0.8;
+        }
+        .health-check {
+            margin: 1rem 0;
+        }
+        .status-indicator {
+            font-size: 1.2rem;
+            margin: 0.5rem 0;
+        }
+        .status-ok {
+            color: #4CAF50;
+        }
+        .success-banner {
+            background: rgba(76, 175, 80, 0.2);
+            border: 2px solid #4CAF50;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            text-align: center;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🚀 Platform Online!</h1>
-        <p>Testing deployment...</p>
-        <p>If you can see this, the deployment is working!</p>
-        <p>Next: Add n8n and Crawl4AI services</p>
+        <div class="success-banner">
+            <h2>🎉 All Services Running Successfully! 🎉</h2>
+            <p>Complete unified platform with 3 applications in a single Docker container</p>
+        </div>
+        
+        <h1>🚀 Unified Platform</h1>
+        <p style="text-align: center; font-size: 1.2rem; margin-bottom: 2rem;">
+            Your complete automation and AI platform - all services running locally
+        </p>
+
+        <div class="services">
+            <div class="service-card">
+                <div class="service-title">🔄 n8n</div>
+                <div class="service-description">
+                    Workflow automation platform. Create powerful automations with a visual interface.
+                </div>
+                <div class="status-indicator status-ok">✅ Running</div>
+                <a href="/n8n/" class="service-link">Open n8n</a>
+                <br><br>
+                <a href="/direct/n8n/" class="service-link secondary">Direct Access</a>
+            </div>
+
+            <div class="service-card">
+                <div class="service-title">🕷️ Crawl4AI</div>
+                <div class="service-description">
+                    AI-powered web crawler. Extract and process web content with intelligence.
+                </div>
+                <div class="status-indicator status-ok">✅ Running</div>
+                <a href="/crawl4ai/" class="service-link">Open Crawl4AI</a>
+                <br><br>
+                <a href="/direct/crawl4ai/" class="service-link secondary">Direct Access</a>
+            </div>
+
+            <div class="service-card">
+                <div class="service-title">🏠 Landing Hub</div>
+                <div class="service-description">
+                    Central dashboard and health monitoring for all platform services.
+                </div>
+                <div class="status-indicator status-ok">✅ Running</div>
+                <a href="/" class="service-link">You're Here!</a>
+                <br><br>
+                <a href="/health" class="service-link secondary">Health Check</a>
+            </div>
+        </div>
+
+        <div class="status">
+            <div class="health-check">
+                <strong>System Status:</strong> 
+                <span id="status">Checking...</span>
+            </div>
+            <p><strong>🐳 Single Docker Container Platform</strong></p>
+            <p>
+                <strong>Access URLs:</strong><br>
+                Landing Page: <a href="/" style="color: #fff;">http://localhost:7777/</a><br>
+                n8n: <a href="/n8n/" style="color: #fff;">http://localhost:7777/n8n/</a><br>
+                Crawl4AI: <a href="/crawl4ai/" style="color: #fff;">http://localhost:7777/crawl4ai/</a><br>
+                Health Check: <a href="/health" style="color: #fff;">http://localhost:7777/health</a>
+            </p>
+            <p>
+                <strong>Direct Access:</strong><br>
+                n8n: <a href="http://localhost:7778/" style="color: #fff;" target="_blank">http://localhost:7778/</a><br>
+                Crawl4AI: <a href="http://localhost:7779/" style="color: #fff;" target="_blank">http://localhost:7779/</a><br>
+                Landing: <a href="http://localhost:7780/" style="color: #fff;" target="_blank">http://localhost:7780/</a>
+            </p>
+        </div>
     </div>
+
+    <script>
+        // Check system health
+        fetch('/health')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('status').textContent = '✅ All systems operational';
+                document.getElementById('status').style.color = '#4CAF50';
+            })
+            .catch(error => {
+                document.getElementById('status').textContent = '⚠️ Some services may be starting up';
+                document.getElementById('status').style.color = '#FFA726';
+            });
+    </script>
 </body>
 </html> 

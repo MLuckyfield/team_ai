@@ -1,0 +1,14 @@
+services:
+  minimal-platform:
+    build:
+      context: .
+      dockerfile: Dockerfile.minimal
+    ports:
+      - "9999:80"      # Main nginx proxy
+      - "9998:8080"    # Direct landing page access
+      - "9997:5678"    # Direct n8n access  
+    environment:
+      - NODE_ENV=production
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+    restart: unless-stopped 

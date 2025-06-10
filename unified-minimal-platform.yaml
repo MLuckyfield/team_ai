@@ -1,0 +1,16 @@
+name: unified-minimal-platform
+services:
+- build_command: ""
+  dockerfile_path: Dockerfile.minimal
+  environment_slug: docker
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: MLuckyfield/team_ai
+  http_port: 80
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  name: minimal-platform
+  routes:
+  - path: /
+  source_dir: / 
