@@ -8,7 +8,7 @@ services:
   github:
     repo: MLuckyfield/team_ai
     branch: main
-  dockerfile_path: Dockerfile.opensign-lightweight
+  dockerfile_path: Dockerfile.minimal
   build_command: ""
   http_port: 80
   instance_count: 1
