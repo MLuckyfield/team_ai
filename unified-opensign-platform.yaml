@@ -1,11 +1,10 @@
-name: unified-opensign-platform
+name: unified-minimal-platform
 services:
-- name: app
-  build_command: ""
+- name: unified-platform
   dockerfile_path: Dockerfile.opensign-official
   source_dir: /
   github:
-    repo: mattc/agents
+    repo: MLuckyfield/team_ai
     branch: main
     deploy_on_push: true
   http_port: 80
@@ -15,7 +14,6 @@ services:
     period_seconds: 60
     timeout_seconds: 30
     success_threshold: 1
-    failure_threshold: 5
+    failure_threshold: 3
   instance_count: 1
-  instance_size_slug: basic-xxs
-  environment_slug: node-js 
+  instance_size_slug: basic-xxs 
