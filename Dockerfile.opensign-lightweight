@@ -21,12 +21,10 @@ RUN npm install
 RUN npm install -g n8n@1.70.1
 
 # Create directories and set permissions (same as working version)
-RUN mkdir -p /var/log/supervisor /var/run/supervisor \
+RUN mkdir -p /var/log/supervisor /var/run \
     /var/log/nginx /var/lib/nginx/body /var/lib/nginx/fastcgi \
     && chown -R www-data:www-data /var/log/nginx /var/lib/nginx \
-    && chmod 755 /var/log/nginx /var/log/supervisor /var/run/supervisor \
-    && touch /var/run/supervisor/supervisord.pid \
-    && chmod 644 /var/run/supervisor/supervisord.pid
+    && chmod 755 /var/log/nginx /var/log/supervisor /var/run
 
 # Copy nginx and supervisor configurations (enhanced with OpenSign routing)
 COPY nginx.opensign-lightweight.conf /etc/nginx/nginx.conf
