@@ -26,8 +26,22 @@ RUN git clone --depth 1 https://github.com/OpenSignLabs/OpenSign.git opensign
 # Setup OpenSign according to official documentation
 WORKDIR /app/opensign
 
-# Copy environment file as per official docs
-RUN cp .env.frontend_dev apps/OpenSign/.env
+# Check what environment files exist and copy the appropriate one
+RUN ls -la .env* || echo "No .env files found"
+
+# Copy environment file (try multiple possible names)
+RUN if [ -f .env.frontend_dev ]; then \
+        cp .env.frontend_dev apps/OpenSign/.env; \
+    elif [ -f .env.local_dev ]; then \
+        cp .env.local_dev apps/OpenSign/.env; \
+    elif [ -f .env.example ]; then \
+        cp .env.example apps/OpenSign/.env; \
+    else \
+        echo "Creating basic .env file"; \
+        echo "NEXT_PUBLIC_PARSE_APP_ID=opensign" > apps/OpenSign/.env; \
+        echo "NEXT_PUBLIC_PARSE_SERVER_URL=https://staging-backend.opensignlabs.com/api/v1" >> apps/OpenSign/.env; \
+        echo "NEXT_PUBLIC_PARSE_JS_KEY=Bvby0xKDJTBYUEAXUBfS" >> apps/OpenSign/.env; \
+    fi
 
 # Install root dependencies
 RUN npm install
