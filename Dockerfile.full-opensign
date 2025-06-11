@@ -1,0 +1,164 @@
+FROM node:20-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    nginx \
+    gnupg \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install MongoDB
+RUN curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor \
+    && echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-7.0.list \
+    && apt-get update \
+    && apt-get install -y mongodb-org \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy existing platform files (landing page and server)
+COPY server.js ./
+COPY package.json ./
+COPY index.html ./
+
+# Install dependencies for landing page
+RUN npm install
+
+# Install n8n globally
+RUN npm install -g n8n@1.70.1
+
+# Create MongoDB data directory
+RUN mkdir -p /data/db
+
+# Clone OpenSign repository
+RUN git clone --depth 1 https://github.com/OpenSignLabs/OpenSign.git opensign
+
+WORKDIR /app/opensign
+
+# Create OpenSign environment configuration
+RUN echo 'PUBLIC_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/opensign/' > .env.prod && \
+    echo 'GENERATE_SOURCEMAP=false' >> .env.prod && \
+    echo 'REACT_APP_APPID=opensign' >> .env.prod && \
+    echo 'appName=open_sign_server' >> .env.prod && \
+    echo 'MASTER_KEY=XnAadwKxxByMr' >> .env.prod && \
+    echo 'MONGODB_URI=mongodb://localhost:27017/OpenSignDB' >> .env.prod && \
+    echo 'PARSE_MOUNT=/app' >> .env.prod && \
+    echo 'SERVER_URL=http://localhost:8081/app' >> .env.prod && \
+    echo '# AWS S3 Configuration - YOU NEED TO SET THESE VALUES' >> .env.prod && \
+    echo 'USE_LOCAL=false' >> .env.prod && \
+    echo 'DO_SPACE=YOUR_S3_BUCKET_NAME' >> .env.prod && \
+    echo 'DO_ENDPOINT=s3.YOUR_REGION.amazonaws.com' >> .env.prod && \
+    echo 'DO_BASEURL=https://YOUR_S3_BUCKET_NAME.s3.YOUR_REGION.amazonaws.com' >> .env.prod && \
+    echo 'DO_ACCESS_KEY_ID=YOUR_AWS_ACCESS_KEY' >> .env.prod && \
+    echo 'DO_SECRET_ACCESS_KEY=YOUR_AWS_SECRET_KEY' >> .env.prod && \
+    echo 'DO_REGION=YOUR_AWS_REGION' >> .env.prod && \
+    echo '# Email Configuration (Optional - leave empty for now)' >> .env.prod && \
+    echo 'SMTP_ENABLE=false' >> .env.prod && \
+    echo 'MAILGUN_API_KEY=' >> .env.prod && \
+    echo 'MAILGUN_DOMAIN=' >> .env.prod && \
+    echo 'MAILGUN_SENDER=' >> .env.prod && \
+    echo '# Document Signing Certificate (Optional)' >> .env.prod && \
+    echo 'PFX_BASE64=' >> .env.prod && \
+    echo 'PASS_PHRASE=opensign' >> .env.prod && \
+    echo 'APP_ID=opensign' >> .env.prod
+
+# Install OpenSign dependencies
+RUN npm install
+
+# Build OpenSign frontend and backend
+RUN npm run build
+
+# Go back to app directory for final setup
+WORKDIR /app
+
+# Create nginx configuration for all services
+RUN echo 'events { worker_connections 1024; }' > /etc/nginx/nginx.conf && \
+    echo 'http {' >> /etc/nginx/nginx.conf && \
+    echo '    include /etc/nginx/mime.types;' >> /etc/nginx/nginx.conf && \
+    echo '    default_type application/octet-stream;' >> /etc/nginx/nginx.conf && \
+    echo '    upstream landing { server 127.0.0.1:8080; }' >> /etc/nginx/nginx.conf && \
+    echo '    upstream n8n_backend { server 127.0.0.1:5678; }' >> /etc/nginx/nginx.conf && \
+    echo '    upstream opensign_backend { server 127.0.0.1:3000; }' >> /etc/nginx/nginx.conf && \
+    echo '    upstream opensign_api { server 127.0.0.1:8081; }' >> /etc/nginx/nginx.conf && \
+    echo '    server {' >> /etc/nginx/nginx.conf && \
+    echo '        listen 80;' >> /etc/nginx/nginx.conf && \
+    echo '        location / {' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_pass http://landing/;' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_set_header Host $host;' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_set_header X-Real-IP $remote_addr;' >> /etc/nginx/nginx.conf && \
+    echo '        }' >> /etc/nginx/nginx.conf && \
+    echo '        location /n8n/ {' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_pass http://n8n_backend/;' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_set_header Host $host;' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_set_header X-Real-IP $remote_addr;' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_set_header X-Forwarded-Proto $scheme;' >> /etc/nginx/nginx.conf && \
+    echo '        }' >> /etc/nginx/nginx.conf && \
+    echo '        location /opensign/ {' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_pass http://opensign_backend/;' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_set_header Host $host;' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_set_header X-Real-IP $remote_addr;' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_set_header X-Forwarded-Proto $scheme;' >> /etc/nginx/nginx.conf && \
+    echo '        }' >> /etc/nginx/nginx.conf && \
+    echo '        location /opensign/api/ {' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_pass http://opensign_api/;' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_set_header Host $host;' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_set_header X-Real-IP $remote_addr;' >> /etc/nginx/nginx.conf && \
+    echo '        }' >> /etc/nginx/nginx.conf && \
+    echo '    }' >> /etc/nginx/nginx.conf && \
+    echo '}' >> /etc/nginx/nginx.conf
+
+# Create startup script
+RUN echo '#!/bin/bash' > /app/start-services.sh && \
+    echo 'set -e' >> /app/start-services.sh && \
+    echo '' >> /app/start-services.sh && \
+    echo '# Start MongoDB' >> /app/start-services.sh && \
+    echo 'echo "🚀 Starting MongoDB..."' >> /app/start-services.sh && \
+    echo 'mongod --dbpath /data/db --fork --logpath /var/log/mongodb.log' >> /app/start-services.sh && \
+    echo '' >> /app/start-services.sh && \
+    echo '# Wait for MongoDB to be ready' >> /app/start-services.sh && \
+    echo 'until mongosh --eval "print(\"MongoDB ready\")"; do' >> /app/start-services.sh && \
+    echo '  echo "Waiting for MongoDB..."' >> /app/start-services.sh && \
+    echo '  sleep 2' >> /app/start-services.sh && \
+    echo 'done' >> /app/start-services.sh && \
+    echo '' >> /app/start-services.sh && \
+    echo '# Start Landing Page' >> /app/start-services.sh && \
+    echo 'echo "🚀 Starting Landing Page on port 8080..."' >> /app/start-services.sh && \
+    echo 'cd /app && node server.js &' >> /app/start-services.sh && \
+    echo '' >> /app/start-services.sh && \
+    echo '# Start n8n' >> /app/start-services.sh && \
+    echo 'echo "🚀 Starting n8n on port 5678..."' >> /app/start-services.sh && \
+    echo 'N8N_PORT=5678 n8n start &' >> /app/start-services.sh && \
+    echo '' >> /app/start-services.sh && \
+    echo '# Start OpenSign Parse Server' >> /app/start-services.sh && \
+    echo 'echo "🚀 Starting OpenSign Parse Server on port 8081..."' >> /app/start-services.sh && \
+    echo 'cd /app/opensign && PORT=8081 NODE_ENV=production npm run start:server &' >> /app/start-services.sh && \
+    echo '' >> /app/start-services.sh && \
+    echo '# Start OpenSign Frontend' >> /app/start-services.sh && \
+    echo 'echo "🚀 Starting OpenSign Frontend on port 3000..."' >> /app/start-services.sh && \
+    echo 'cd /app/opensign && PORT=3000 npm run start &' >> /app/start-services.sh && \
+    echo '' >> /app/start-services.sh && \
+    echo '# Start nginx' >> /app/start-services.sh && \
+    echo 'echo "🚀 Starting nginx reverse proxy on port 80..."' >> /app/start-services.sh && \
+    echo 'nginx -g "daemon off;" &' >> /app/start-services.sh && \
+    echo '' >> /app/start-services.sh && \
+    echo '# Wait for all services to be ready' >> /app/start-services.sh && \
+    echo 'sleep 30' >> /app/start-services.sh && \
+    echo '' >> /app/start-services.sh && \
+    echo 'echo "✅ All services started successfully!"' >> /app/start-services.sh && \
+    echo 'echo "📋 Service Status:"' >> /app/start-services.sh && \
+    echo 'echo "   Landing Page: http://localhost:8080 (via / path)"' >> /app/start-services.sh && \
+    echo 'echo "   n8n: http://localhost:5678 (via /n8n/ path)"' >> /app/start-services.sh && \
+    echo 'echo "   OpenSign Frontend: http://localhost:3000 (via /opensign/ path)"' >> /app/start-services.sh && \
+    echo 'echo "   OpenSign API: http://localhost:8081 (via /opensign/api/ path)"' >> /app/start-services.sh && \
+    echo 'echo "   MongoDB: mongodb://localhost:27017"' >> /app/start-services.sh && \
+    echo '' >> /app/start-services.sh && \
+    echo '# Keep container running' >> /app/start-services.sh && \
+    echo 'wait' >> /app/start-services.sh && \
+    chmod +x /app/start-services.sh
+
+EXPOSE 80
+
+CMD ["/app/start-services.sh"] 
