@@ -1,0 +1,94 @@
+FROM node:20-slim
+
+# Install system dependencies including MongoDB
+RUN apt-get update && apt-get install -y \
+    curl \
+    supervisor \
+    nginx \
+    python3 \
+    python3-pip \
+    build-essential \
+    mongodb \
+    git \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create necessary directories and set permissions
+RUN mkdir -p /var/log/supervisor /var/run/supervisor /var/lib/mongodb /var/log/mongodb \
+    && chmod 755 /var/log/supervisor /var/run/supervisor /var/lib/mongodb /var/log/mongodb \
+    && chown mongodb:mongodb /var/lib/mongodb /var/log/mongodb
+
+WORKDIR /app
+
+# Copy existing working files
+COPY server.js ./
+COPY package.json ./
+COPY index.html ./
+
+# Install n8n globally (keep our proven approach)
+RUN npm config set registry https://registry.npmjs.org/ && \
+    npm install -g n8n@1.70.1 --timeout=300000
+
+# Install landing page dependencies
+RUN npm install
+
+# Clone OpenSign and set up (following official structure)
+RUN git clone https://github.com/OpenSignLabs/OpenSign.git /opensign \
+    && cd /opensign \
+    && git checkout main
+
+# Install OpenSign Server dependencies
+RUN cd /opensign/apps/OpenSignServer \
+    && npm install --production
+
+# Install OpenSign Client dependencies and build
+RUN cd /opensign/apps/OpenSign \
+    && npm install \
+    && npm run build
+
+# Copy official .env template and create production config
+RUN cd /opensign && \
+    curl -o .env.local_dev https://raw.githubusercontent.com/OpenSignLabs/OpenSign/main/.env.local_dev && \
+    cp .env.local_dev .env.prod
+
+# Copy our config files
+COPY nginx.opensign-official.conf /etc/nginx/nginx.conf
+COPY supervisord.opensign-official.conf /etc/supervisor/conf.d/supervisord.conf
+COPY startup-opensign.sh ./startup.sh
+
+# Make startup script executable
+RUN chmod +x startup.sh
+
+# Create nginx directories and fix permissions
+RUN mkdir -p /var/log/nginx /var/lib/nginx/body /var/lib/nginx/fastcgi \
+    && chown -R www-data:www-data /var/log/nginx /var/lib/nginx \
+    && chmod 755 /var/log/nginx
+
+# Expose port 80 only (nginx handles internal routing)
+EXPOSE 80
+
+# Set environment variables for our platform
+ENV N8N_HOST=0.0.0.0
+ENV N8N_PORT=5678
+ENV NODE_ENV=production
+ENV N8N_BASIC_AUTH_ACTIVE=false
+ENV N8N_SECURE_COOKIE=false
+ENV WEBHOOK_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/
+ENV N8N_EDITOR_BASE_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/n8n/
+ENV N8N_PATH=/n8n/
+
+# OpenSign environment variables (following official documentation)
+ENV PUBLIC_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/opensign/
+ENV MASTER_KEY=XnAadwKxxByMr
+ENV MONGODB_URI=mongodb://localhost:27017/OpenSignDB
+ENV PARSE_MOUNT=/app
+ENV SERVER_URL=http://localhost:1337/app
+ENV USE_LOCAL=true
+ENV APP_ID=opensign
+
+# Health check with longer start period for OpenSign setup
+HEALTHCHECK --interval=60s --timeout=30s --start-period=240s --retries=5 \
+    CMD curl -f http://localhost/health || exit 1
+
+# Start using our startup script
+CMD ["./startup.sh"] 
