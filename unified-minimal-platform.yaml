@@ -1,4 +1,5 @@
 name: unified-minimal-platform
+# Force rebuild - Working OpenSign placeholder v2
 services:
 - build_command: ""
   dockerfile_path: Dockerfile.working-simple
