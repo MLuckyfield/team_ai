@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  landing-n8n:
+    build:
+      context: .
+      dockerfile: Dockerfile.landing-plus-n8n
+    ports:
+      - "9999:80"      # Main nginx proxy (reusing successful port)
+      - "9998:5678"    # Direct n8n access
+      - "9997:8080"    # Direct landing page access
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 90s 
