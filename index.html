@@ -26,165 +26,130 @@
             max-width: 800px;
             padding: 40px;
             background: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
+            border-radius: 15px;
             backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
 
         h1 {
-            font-size: 3rem;
+            font-size: 3em;
             margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            background: linear-gradient(45deg, #fff, #f0f0f0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .subtitle {
-            font-size: 1.2rem;
+            font-size: 1.3em;
             margin-bottom: 40px;
             opacity: 0.9;
         }
 
-        .services {
+        .apps-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 30px;
-            margin-top: 40px;
+            margin: 40px 0;
         }
 
-        .service-card {
-            background: rgba(255, 255, 255, 0.2);
+        .app-card {
+            background: rgba(255, 255, 255, 0.15);
             padding: 30px;
-            border-radius: 15px;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-radius: 12px;
+            transition: all 0.3s ease;
             text-decoration: none;
             color: white;
-            display: block;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        .service-card:hover {
+        .app-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-            text-decoration: none;
-            color: white;
+            background: rgba(255, 255, 255, 0.25);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
         }
 
-        .service-icon {
-            font-size: 3rem;
+        .app-icon {
+            font-size: 3em;
             margin-bottom: 15px;
         }
 
-        .service-title {
-            font-size: 1.5rem;
+        .app-title {
+            font-size: 1.5em;
             font-weight: bold;
             margin-bottom: 10px;
         }
 
-        .service-description {
-            font-size: 0.9rem;
+        .app-description {
+            font-size: 0.95em;
             opacity: 0.8;
-            line-height: 1.5;
+            line-height: 1.4;
         }
 
-        .features {
-            margin-top: 50px;
-            text-align: left;
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #28a745;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
         }
 
-        .features h2 {
-            margin-bottom: 20px;
-            color: #fff;
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
 
-        .features ul {
-            list-style: none;
-            padding: 0;
+        .footer {
+            margin-top: 40px;
+            font-size: 0.9em;
+            opacity: 0.7;
         }
 
-        .features li {
-            margin-bottom: 10px;
-            padding-left: 20px;
-            position: relative;
-        }
-
-        .features li::before {
-            content: "✓";
-            position: absolute;
-            left: 0;
-            color: #4CAF50;
+        .new-badge {
+            background: #ff6b6b;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.7em;
             font-weight: bold;
-        }
-
-        .status {
-            margin-top: 30px;
-            padding: 15px;
-            background: rgba(76, 175, 80, 0.2);
-            border-radius: 10px;
-            border-left: 4px solid #4CAF50;
-        }
-
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 2rem;
-            }
-            
-            .container {
-                margin: 20px;
-                padding: 30px 20px;
-            }
-            
-            .services {
-                grid-template-columns: 1fr;
-            }
+            margin-left: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🚀 Unified Multi-App Platform</h1>
-        <p class="subtitle">Your all-in-one solution for workflow automation, document signing, and more</p>
+        <p class="subtitle">Three powerful applications, one seamless experience</p>
         
-        <div class="status">
-            <strong>🟢 All Services Online</strong> - Platform is running smoothly on Digital Ocean
-        </div>
-
-        <div class="services">
-            <a href="/n8n/" class="service-card" target="_blank">
-                <div class="service-icon">⚡</div>
-                <div class="service-title">n8n Workflow Automation</div>
-                <div class="service-description">
-                    Create powerful workflows and automate tasks with visual programming. 
-                    Connect APIs, databases, and services with ease.
+        <div class="apps-grid">
+            <a href="/n8n/" class="app-card">
+                <div class="app-icon">⚡</div>
+                <div class="app-title">
+                    <span class="status-indicator"></span>n8n Workflows
+                </div>
+                <div class="app-description">
+                    Powerful workflow automation platform. Create, manage, and execute complex automation workflows with ease.
                 </div>
             </a>
-
-            <a href="/opensign/" class="service-card" target="_blank">
-                <div class="service-icon">📝</div>
-                <div class="service-title">OpenSign E-Signature</div>
-                <div class="service-description">
-                    Digital document signing platform. Create, send, and manage 
-                    electronic signatures for contracts and agreements.
+            
+            <a href="/opensign/" class="app-card">
+                <div class="app-icon">🔏</div>
+                <div class="app-title">
+                    <span class="status-indicator"></span>OpenSign E-Signature
+                    <span class="new-badge">REAL APP</span>
+                </div>
+                <div class="app-description">
+                    Complete document signing solution. The real OpenSign application with full e-signature capabilities, document management, and audit trails.
                 </div>
             </a>
-
-            <div class="service-card" style="opacity: 0.7;">
-                <div class="service-icon">🕷️</div>
-                <div class="service-title">Crawl4AI</div>
-                <div class="service-description">
-                    AI-powered web crawler and data extraction service.
-                    <br><em>Coming Soon...</em>
-                </div>
-            </div>
         </div>
-
-        <div class="features">
-            <h2>🌟 Platform Features</h2>
-            <ul>
-                <li>Single unified deployment on Digital Ocean App Platform</li>
-                <li>Path-based routing with nginx reverse proxy</li>
-                <li>SSL/HTTPS certificates for all services</li>
-                <li>Auto-deployment from Git repository</li>
-                <li>Health monitoring and error handling</li>
-                <li>Cost-effective single app instance (~$21/month)</li>
-            </ul>
+        
+        <div class="footer">
+            <p>✅ All services running on Digital Ocean App Platform</p>
+            <p>🔒 SSL secured • 🚀 Auto-deployment enabled • 💰 Cost optimized</p>
         </div>
     </div>
 </body>
