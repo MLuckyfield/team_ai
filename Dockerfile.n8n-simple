@@ -44,7 +44,7 @@ ENV N8N_EDITOR_BASE_URL=https://unified-minimal-platform-5p64u.ondigitalocean.ap
 ENV N8N_PATH=/n8n/
 
 # Create startup script
-RUN echo '#!/bin/bash\nset -e\necho "Starting services..."\n# Start landing page in background\nnode /app/server.js &\n# Start n8n in background\nn8n start &\n# Start nginx in foreground\nnginx -g "daemon off;"' > /app/start.sh && chmod +x /app/start.sh
+RUN echo '#!/bin/bash\nset -e\necho "Starting services..."\n# Start landing page in background with explicit port\nPORT=8080 node /app/server.js &\n# Start n8n in background\nn8n start &\n# Give services time to start\nsleep 5\n# Start nginx in foreground\nnginx -g "daemon off;"' > /app/start.sh && chmod +x /app/start.sh
 
 # Health check
 HEALTHCHECK --interval=60s --timeout=30s --start-period=120s --retries=3 \
