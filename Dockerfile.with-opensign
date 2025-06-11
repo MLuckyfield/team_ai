@@ -1,51 +1,39 @@
 FROM node:20-slim
 
-# Install system dependencies
+# Install system dependencies (same as working version)
 RUN apt-get update && apt-get install -y \
     curl \
     nginx \
-    python3 \
-    python3-pip \
-    git \
-    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy application files
+# Copy application files (same as working version)
 COPY server.js ./
 COPY package.json ./
 COPY index.html ./
 
-# Install dependencies
+# Install dependencies (same as working version)
 RUN npm install
 
-# Install n8n globally
+# Install n8n globally (same as working version)
 RUN npm install -g n8n@1.70.1
-
-# Clone and setup OpenSign
-RUN git clone https://github.com/opensignlabs/opensign.git opensign && \
-    cd opensign && \
-    npm install && \
-    cp .env.frontend_dev apps/OpenSign/.env && \
-    cd apps/OpenSign && \
-    npm install
 
 # Create nginx configuration
 RUN mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
 
-# Copy nginx config
+# Copy nginx config (with OpenSign route added)
 COPY nginx.with-opensign.conf /etc/nginx/nginx.conf
 
-# Create directories and set permissions
+# Create directories and set permissions (same as working version)
 RUN mkdir -p /var/log/nginx /var/lib/nginx/body /var/lib/nginx/fastcgi \
     && chown -R www-data:www-data /var/log/nginx /var/lib/nginx \
     && chmod 755 /var/log/nginx
 
-# Expose port
+# Expose port (same as working version)
 EXPOSE 80
 
-# Set environment variables
+# Set environment variables (same as working version)
 ENV N8N_HOST=0.0.0.0
 ENV N8N_PORT=5678
 ENV NODE_ENV=production
@@ -55,15 +43,11 @@ ENV WEBHOOK_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/
 ENV N8N_EDITOR_BASE_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/n8n/
 ENV N8N_PATH=/n8n/
 
-# OpenSign environment variables
-ENV OPENSIGN_PORT=3001
-ENV OPENSIGN_PUBLIC_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/opensign
+# Create startup script (same as working version + OpenSign route info)
+RUN echo '#!/bin/bash\nset -e\necho "Starting services..."\n\n# Start landing page in background (SAME AS WORKING VERSION)\nPORT=8080 node /app/server.js &\necho "✅ Landing page started on port 8080"\n\n# Start n8n in background (SAME AS WORKING VERSION)\nn8n start &\necho "✅ n8n started on port 5678"\n\n# Info about OpenSign route\necho "📋 OpenSign route configured at /opensign/ (placeholder page)"\n\n# Give services time to start\nsleep 5\n\n# Start nginx in foreground (SAME AS WORKING VERSION)\necho "✅ Starting nginx reverse proxy..."\nnginx -g "daemon off;"' > /app/start.sh && chmod +x /app/start.sh
 
-# Create startup script
-RUN echo '#!/bin/bash\nset -e\necho "Starting services..."\n# Start landing page in background with explicit port\nPORT=8080 node /app/server.js &\n# Start n8n in background\nn8n start &\n# Start OpenSign in background (from correct directory with correct port)\ncd /app/opensign/apps/OpenSign && PORT=3001 npm run start-dev &\n# Give services time to start\nsleep 10\n# Start nginx in foreground\nnginx -g "daemon off;"' > /app/start.sh && chmod +x /app/start.sh
-
-# Health check
-HEALTHCHECK --interval=60s --timeout=30s --start-period=180s --retries=3 \
+# Health check (same as working version)
+HEALTHCHECK --interval=60s --timeout=30s --start-period=120s --retries=3 \
     CMD curl -f http://localhost/ || exit 1
 
 CMD ["/app/start.sh"] 

@@ -1,8 +1,8 @@
 name: unified-minimal-platform
-# Working Landing Page + n8n Platform (FORCE REBUILD - No OpenSign)
+# Working Landing Page + n8n Platform + OpenSign Route Added
 services:
 - build_command: ""
-  dockerfile_path: Dockerfile.n8n-simple
+  dockerfile_path: Dockerfile.with-opensign
   github:
     branch: main
     deploy_on_push: true
