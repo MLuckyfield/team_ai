@@ -22,5 +22,4 @@ services:
     timeout_seconds: 30
     success_threshold: 1
     failure_threshold: 3
-  run_command: ""
-  environment_slug: node-js 
+  run_command: "" 
