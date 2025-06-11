@@ -1,8 +1,8 @@
 name: unified-minimal-platform
-# Restored working configuration: Landing Page + n8n + OpenSign Placeholder
+# Working Landing Page + n8n Platform (RESTORED)
 services:
 - build_command: ""
-  dockerfile_path: Dockerfile.working-simple
+  dockerfile_path: Dockerfile.n8n-simple
   github:
     branch: main
     deploy_on_push: true
