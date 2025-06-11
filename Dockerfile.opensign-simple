@@ -1,0 +1,84 @@
+FROM opensign/opensign:main as opensign-client
+FROM opensign/opensignserver:main as opensign-server
+
+FROM node:20-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    nginx \
+    supervisor \
+    mongodb-server \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy application files for landing page
+COPY server.js ./
+COPY package.json ./
+COPY index.html ./
+
+# Install dependencies for landing page
+RUN npm install
+
+# Install n8n globally
+RUN npm install -g n8n@1.70.1
+
+# Create directories for all services
+RUN mkdir -p /var/log/supervisor /var/run/supervisor \
+    /var/log/nginx /var/lib/nginx/body /var/lib/nginx/fastcgi \
+    /data/db /app/opensign-client /app/opensign-server \
+    && chown -R www-data:www-data /var/log/nginx /var/lib/nginx \
+    && chmod 755 /var/log/nginx /var/log/supervisor /var/run/supervisor
+
+# Copy OpenSign client from official image
+COPY --from=opensign-client /usr/src/app /app/opensign-client
+WORKDIR /app/opensign-client
+RUN npm install --production --silent
+
+# Copy OpenSign server from official image  
+COPY --from=opensign-server /usr/src/app /app/opensign-server
+WORKDIR /app/opensign-server
+RUN npm install --production --silent
+
+# Go back to main directory
+WORKDIR /app
+
+# Create environment file for OpenSign
+RUN echo 'PUBLIC_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/opensign' > /app/.env.opensign \
+    && echo 'GENERATE_SOURCEMAP=false' >> /app/.env.opensign \
+    && echo 'REACT_APP_SERVERURL=https://unified-minimal-platform-5p64u.ondigitalocean.app/opensign-api' >> /app/.env.opensign \
+    && echo 'REACT_APP_APPID=opensign' >> /app/.env.opensign \
+    && echo 'appName=OpenSign' >> /app/.env.opensign \
+    && echo 'MASTER_KEY=XnAadwKxxByMr123' >> /app/.env.opensign \
+    && echo 'MONGODB_URI=mongodb://127.0.0.1:27017/OpenSignDB' >> /app/.env.opensign \
+    && echo 'PARSE_MOUNT=/app' >> /app/.env.opensign \
+    && echo 'SERVER_URL=http://127.0.0.1:8081/app' >> /app/.env.opensign \
+    && echo 'USE_LOCAL=true' >> /app/.env.opensign \
+    && echo 'SMTP_ENABLE=false' >> /app/.env.opensign \
+    && echo 'PFX_BASE64=' >> /app/.env.opensign \
+    && echo 'PASS_PHRASE=opensign' >> /app/.env.opensign \
+    && echo 'APP_ID=opensign' >> /app/.env.opensign
+
+# Copy nginx and supervisor configurations
+COPY nginx.opensign-simple.conf /etc/nginx/nginx.conf
+COPY supervisord.opensign-simple.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Set environment variables
+ENV N8N_HOST=0.0.0.0
+ENV N8N_PORT=5678
+ENV NODE_ENV=production
+ENV N8N_BASIC_AUTH_ACTIVE=false
+ENV N8N_SECURE_COOKIE=false
+ENV WEBHOOK_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/
+ENV N8N_EDITOR_BASE_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/n8n/
+ENV N8N_PATH=/n8n/
+
+# Expose port
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=60s --timeout=30s --start-period=120s --retries=3 \
+    CMD curl -f http://localhost/ || exit 1
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 

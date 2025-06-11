@@ -1,16 +1,26 @@
+# Digital Ocean App Platform Configuration
+# Unified platform with OpenSign, n8n, and Landing Page
+
 name: unified-minimal-platform
-# Working Landing Page + n8n Platform + OpenSign Route Added
 services:
-- build_command: ""
-  dockerfile_path: Dockerfile.with-opensign
+- name: unified-platform
+  source_dir: /
   github:
-    branch: main
-    deploy_on_push: true
     repo: MLuckyfield/team_ai
+    branch: main
+  dockerfile_path: Dockerfile.opensign-simple
+  build_command: ""
   http_port: 80
   instance_count: 1
   instance_size_slug: basic-xxs
-  name: minimal-platform
   routes:
   - path: /
-  source_dir: / 
+  health_check:
+    http_path: /health
+    initial_delay_seconds: 180
+    period_seconds: 60
+    timeout_seconds: 30
+    success_threshold: 1
+    failure_threshold: 3
+  run_command: ""
+  environment_slug: node-js 

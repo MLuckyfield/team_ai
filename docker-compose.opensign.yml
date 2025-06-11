@@ -1,0 +1,29 @@
+version: '3.8'
+services:
+  unified-platform-opensign:
+    build:
+      context: .
+      dockerfile: Dockerfile.opensign-simple
+    ports:
+      - "9999:80"  # Main access
+      - "9998:8080" # Landing page direct
+      - "9997:5678" # n8n direct
+      - "9996:3000" # OpenSign client direct
+      - "9995:8081" # OpenSign server direct
+      - "9994:27017" # MongoDB direct
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - opensign-data:/data/db
+      - opensign-files:/app/opensign-server/files
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+volumes:
+  opensign-data:
+  opensign-files: 
