@@ -1,7 +1,7 @@
 name: unified-minimal-platform
 services:
 - build_command: ""
-  dockerfile_path: Dockerfile.n8n-simple
+  dockerfile_path: Dockerfile.with-opensign
   github:
     branch: main
     deploy_on_push: true
