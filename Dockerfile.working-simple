@@ -4,24 +4,40 @@ FROM node:20-slim
 RUN apt-get update && apt-get install -y \
     curl \
     nginx \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy application files
+# Copy application files (landing page and server)
 COPY server.js ./
 COPY package.json ./
 COPY index.html ./
 
-# Install dependencies
+# Install dependencies for landing page
 RUN npm install
 
 # Install n8n globally
 RUN npm install -g n8n@1.70.1
 
-# Create a simple OpenSign placeholder service
-RUN mkdir -p opensign-placeholder
-RUN echo 'const express = require("express");\nconst app = express();\nconst port = 3001;\n\napp.get("/", (req, res) => {\n  res.send(`\n    <!DOCTYPE html>\n    <html>\n    <head>\n      <title>OpenSign - Coming Soon</title>\n      <style>\n        body { font-family: Arial, sans-serif; padding: 40px; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }\n        .container { background: rgba(255,255,255,0.1); padding: 40px; border-radius: 10px; }\n        h1 { font-size: 2.5em; margin-bottom: 20px; }\n        p { font-size: 1.2em; line-height: 1.6; }\n        .status { background: #28a745; padding: 10px 20px; border-radius: 5px; display: inline-block; margin: 20px 0; }\n      </style>\n    </head>\n    <body>\n      <div class="container">\n        <h1>🔏 OpenSign E-Signature Platform</h1>\n        <div class="status">✅ Service Running</div>\n        <p>OpenSign is successfully deployed and running on the unified platform!</p>\n        <p>This is a placeholder interface. The full OpenSign application will be integrated next.</p>\n        <p><strong>Features Available:</strong></p>\n        <ul style="text-align: left; display: inline-block;">\n          <li>✅ Service Health Check</li>\n          <li>✅ Path Routing (/opensign/)</li>\n          <li>✅ SSL/HTTPS Support</li>\n          <li>🔄 Full OpenSign UI (Coming Soon)</li>\n        </ul>\n      </div>\n    </body>\n    </html>\n  `);\n});\n\napp.listen(port, "0.0.0.0", () => {\n  console.log(`OpenSign placeholder running on port ${port}`);\n});' > opensign-placeholder/server.js
+# Clone and setup OpenSign properly
+RUN git clone --depth 1 https://github.com/OpenSignLabs/OpenSign.git opensign
+
+# Setup OpenSign according to official documentation
+WORKDIR /app/opensign
+
+# Copy environment file as per official docs
+RUN cp .env.frontend_dev apps/OpenSign/.env
+
+# Install root dependencies
+RUN npm install
+
+# Install OpenSign app dependencies
+WORKDIR /app/opensign/apps/OpenSign
+RUN npm install
+
+# Go back to main app directory
+WORKDIR /app
 
 # Create nginx configuration
 RUN mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
@@ -37,7 +53,7 @@ RUN mkdir -p /var/log/nginx /var/lib/nginx/body /var/lib/nginx/fastcgi \
 # Expose port
 EXPOSE 80
 
-# Set environment variables
+# Set environment variables for n8n
 ENV N8N_HOST=0.0.0.0
 ENV N8N_PORT=5678
 ENV NODE_ENV=production
@@ -47,8 +63,8 @@ ENV WEBHOOK_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/
 ENV N8N_EDITOR_BASE_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/n8n/
 ENV N8N_PATH=/n8n/
 
-# Create startup script (all services working)
-RUN echo '#!/bin/bash\nset -e\necho "Starting all services..."\n# Start landing page in background with explicit port\nPORT=8080 node /app/server.js &\n# Start n8n in background\nn8n start &\n# Start OpenSign placeholder in background\nnode /app/opensign-placeholder/server.js &\n# Give services time to start\nsleep 5\n# Start nginx in foreground\nnginx -g "daemon off;"' > /app/start.sh && chmod +x /app/start.sh
+# Create startup script (all services working with REAL OpenSign)
+RUN echo '#!/bin/bash\nset -e\necho "Starting all services..."\n# Start landing page in background with explicit port\nPORT=8080 node /app/server.js &\n# Start n8n in background\nn8n start &\n# Start REAL OpenSign in background (real app on port 3001)\ncd /app/opensign/apps/OpenSign && PORT=3001 npm run start-dev &\n# Give services time to start\nsleep 10\n# Start nginx in foreground\nnginx -g "daemon off;"' > /app/start.sh && chmod +x /app/start.sh
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
