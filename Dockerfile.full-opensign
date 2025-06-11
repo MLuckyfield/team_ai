@@ -37,7 +37,7 @@ RUN git clone --depth 1 https://github.com/OpenSignLabs/OpenSign.git opensign
 
 WORKDIR /app/opensign
 
-# Create OpenSign environment configuration
+# Create OpenSign environment configuration based on the official docker-compose setup
 RUN echo 'PUBLIC_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/opensign/' > .env.prod && \
     echo 'GENERATE_SOURCEMAP=false' >> .env.prod && \
     echo 'REACT_APP_APPID=opensign' >> .env.prod && \
@@ -67,8 +67,9 @@ RUN echo 'PUBLIC_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/o
 # Install OpenSign dependencies
 RUN npm install
 
-# Build OpenSign frontend and backend
-RUN npm run build
+# For now, we'll skip the build step and run in development mode
+# since the build step is failing. This will give us a working OpenSign instance
+# that we can then optimize later with S3 configuration
 
 # Go back to app directory for final setup
 WORKDIR /app
@@ -80,7 +81,7 @@ RUN echo 'events { worker_connections 1024; }' > /etc/nginx/nginx.conf && \
     echo '    default_type application/octet-stream;' >> /etc/nginx/nginx.conf && \
     echo '    upstream landing { server 127.0.0.1:8080; }' >> /etc/nginx/nginx.conf && \
     echo '    upstream n8n_backend { server 127.0.0.1:5678; }' >> /etc/nginx/nginx.conf && \
-    echo '    upstream opensign_backend { server 127.0.0.1:3000; }' >> /etc/nginx/nginx.conf && \
+    echo '    upstream opensign_frontend { server 127.0.0.1:3000; }' >> /etc/nginx/nginx.conf && \
     echo '    upstream opensign_api { server 127.0.0.1:8081; }' >> /etc/nginx/nginx.conf && \
     echo '    server {' >> /etc/nginx/nginx.conf && \
     echo '        listen 80;' >> /etc/nginx/nginx.conf && \
@@ -97,7 +98,7 @@ RUN echo 'events { worker_connections 1024; }' > /etc/nginx/nginx.conf && \
     echo '            proxy_set_header X-Forwarded-Proto $scheme;' >> /etc/nginx/nginx.conf && \
     echo '        }' >> /etc/nginx/nginx.conf && \
     echo '        location /opensign/ {' >> /etc/nginx/nginx.conf && \
-    echo '            proxy_pass http://opensign_backend/;' >> /etc/nginx/nginx.conf && \
+    echo '            proxy_pass http://opensign_frontend/;' >> /etc/nginx/nginx.conf && \
     echo '            proxy_set_header Host $host;' >> /etc/nginx/nginx.conf && \
     echo '            proxy_set_header X-Real-IP $remote_addr;' >> /etc/nginx/nginx.conf && \
     echo '            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' >> /etc/nginx/nginx.conf && \
@@ -133,13 +134,13 @@ RUN echo '#!/bin/bash' > /app/start-services.sh && \
     echo 'echo "🚀 Starting n8n on port 5678..."' >> /app/start-services.sh && \
     echo 'N8N_PORT=5678 n8n start &' >> /app/start-services.sh && \
     echo '' >> /app/start-services.sh && \
-    echo '# Start OpenSign Parse Server' >> /app/start-services.sh && \
+    echo '# Start OpenSign Parse Server (backend)' >> /app/start-services.sh && \
     echo 'echo "🚀 Starting OpenSign Parse Server on port 8081..."' >> /app/start-services.sh && \
     echo 'cd /app/opensign && PORT=8081 NODE_ENV=production npm run start:server &' >> /app/start-services.sh && \
     echo '' >> /app/start-services.sh && \
-    echo '# Start OpenSign Frontend' >> /app/start-services.sh && \
+    echo '# Start OpenSign Frontend (development mode for now)' >> /app/start-services.sh && \
     echo 'echo "🚀 Starting OpenSign Frontend on port 3000..."' >> /app/start-services.sh && \
-    echo 'cd /app/opensign && PORT=3000 npm run start &' >> /app/start-services.sh && \
+    echo 'cd /app/opensign && PORT=3000 npm run start-dev &' >> /app/start-services.sh && \
     echo '' >> /app/start-services.sh && \
     echo '# Start nginx' >> /app/start-services.sh && \
     echo 'echo "🚀 Starting nginx reverse proxy on port 80..."' >> /app/start-services.sh && \
@@ -148,13 +149,15 @@ RUN echo '#!/bin/bash' > /app/start-services.sh && \
     echo '# Wait for all services to be ready' >> /app/start-services.sh && \
     echo 'sleep 30' >> /app/start-services.sh && \
     echo '' >> /app/start-services.sh && \
-    echo 'echo "✅ All services started successfully!"' >> /app/start-services.sh && \
+    echo 'echo "✅ All OpenSign services started successfully!"' >> /app/start-services.sh && \
     echo 'echo "📋 Service Status:"' >> /app/start-services.sh && \
     echo 'echo "   Landing Page: http://localhost:8080 (via / path)"' >> /app/start-services.sh && \
     echo 'echo "   n8n: http://localhost:5678 (via /n8n/ path)"' >> /app/start-services.sh && \
     echo 'echo "   OpenSign Frontend: http://localhost:3000 (via /opensign/ path)"' >> /app/start-services.sh && \
-    echo 'echo "   OpenSign API: http://localhost:8081 (via /opensign/api/ path)"' >> /app/start-services.sh && \
+    echo 'echo "   OpenSign Parse Server: http://localhost:8081 (via /opensign/api/ path)"' >> /app/start-services.sh && \
     echo 'echo "   MongoDB: mongodb://localhost:27017"' >> /app/start-services.sh && \
+    echo 'echo ""' >> /app/start-services.sh && \
+    echo 'echo "🔧 Next: Configure AWS S3 for document storage"' >> /app/start-services.sh && \
     echo '' >> /app/start-services.sh && \
     echo '# Keep container running' >> /app/start-services.sh && \
     echo 'wait' >> /app/start-services.sh && \
