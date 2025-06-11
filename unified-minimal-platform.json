@@ -4,13 +4,13 @@
     "services": [
       {
         "build_command": "",
-        "dockerfile_path": "Dockerfile.minimal",
+        "dockerfile_path": "Dockerfile.simple-landing",
         "github": {
           "branch": "main",
           "deploy_on_push": true,
           "repo": "MLuckyfield/team_ai"
         },
-        "http_port": 80,
+        "http_port": 8080,
         "instance_count": 1,
         "instance_size_slug": "basic-xxs",
         "name": "minimal-platform",
