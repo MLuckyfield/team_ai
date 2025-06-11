@@ -4,135 +4,85 @@ FROM node:20-slim
 RUN apt-get update && apt-get install -y \
     curl \
     nginx \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy application files
+# Copy application files (landing page and server)
 COPY server.js ./
 COPY package.json ./
 COPY index.html ./
 
-# Install dependencies
+# Install dependencies for landing page
 RUN npm install
 
 # Install n8n globally
 RUN npm install -g n8n@1.70.1
 
-# Create OpenSign placeholder service
-RUN mkdir -p opensign-placeholder
-RUN echo 'const express = require("express");' > opensign-placeholder/server.js && \
-    echo 'const app = express();' >> opensign-placeholder/server.js && \
-    echo 'const port = 3001;' >> opensign-placeholder/server.js && \
-    echo '' >> opensign-placeholder/server.js && \
-    echo 'app.get("/", (req, res) => {' >> opensign-placeholder/server.js && \
-    echo '  res.send(`' >> opensign-placeholder/server.js && \
-    echo '    <!DOCTYPE html>' >> opensign-placeholder/server.js && \
-    echo '    <html lang="en">' >> opensign-placeholder/server.js && \
-    echo '    <head>' >> opensign-placeholder/server.js && \
-    echo '        <meta charset="UTF-8">' >> opensign-placeholder/server.js && \
-    echo '        <meta name="viewport" content="width=device-width, initial-scale=1.0">' >> opensign-placeholder/server.js && \
-    echo '        <title>OpenSign - Coming Soon</title>' >> opensign-placeholder/server.js && \
-    echo '        <style>' >> opensign-placeholder/server.js && \
-    echo '            * { margin: 0; padding: 0; box-sizing: border-box; }' >> opensign-placeholder/server.js && \
-    echo '            body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; color: white; }' >> opensign-placeholder/server.js && \
-    echo '            .container { text-align: center; max-width: 600px; padding: 40px; background: rgba(255, 255, 255, 0.1); border-radius: 15px; backdrop-filter: blur(10px); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37); }' >> opensign-placeholder/server.js && \
-    echo '            h1 { font-size: 3rem; margin-bottom: 20px; background: linear-gradient(45deg, #ff6b6b, #4ecdc4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }' >> opensign-placeholder/server.js && \
-    echo '            .subtitle { font-size: 1.2rem; margin-bottom: 30px; opacity: 0.9; }' >> opensign-placeholder/server.js && \
-    echo '            .features { list-style: none; margin: 30px 0; }' >> opensign-placeholder/server.js && \
-    echo '            .features li { margin: 10px 0; padding: 10px; background: rgba(255, 255, 255, 0.1); border-radius: 8px; }' >> opensign-placeholder/server.js && \
-    echo '            .status { background: rgba(76, 175, 80, 0.2); border: 1px solid #4caf50; border-radius: 8px; padding: 15px; margin: 20px 0; }' >> opensign-placeholder/server.js && \
-    echo '        </style>' >> opensign-placeholder/server.js && \
-    echo '    </head>' >> opensign-placeholder/server.js && \
-    echo '    <body>' >> opensign-placeholder/server.js && \
-    echo '        <div class="container">' >> opensign-placeholder/server.js && \
-    echo '            <h1>🖋️ OpenSign</h1>' >> opensign-placeholder/server.js && \
-    echo '            <p class="subtitle">Digital Document Signing Platform</p>' >> opensign-placeholder/server.js && \
-    echo '            <div class="status">' >> opensign-placeholder/server.js && \
-    echo '                <strong>🚀 Status: Real OpenSign Application Coming Soon!</strong>' >> opensign-placeholder/server.js && \
-    echo '                <p>Full backend + frontend deployment in progress...</p>' >> opensign-placeholder/server.js && \
-    echo '            </div>' >> opensign-placeholder/server.js && \
-    echo '            <ul class="features">' >> opensign-placeholder/server.js && \
-    echo '                <li>✅ Secure PDF E-Signing</li>' >> opensign-placeholder/server.js && \
-    echo '                <li>✅ Multi-signer Support</li>' >> opensign-placeholder/server.js && \
-    echo '                <li>✅ API Integration Ready</li>' >> opensign-placeholder/server.js && \
-    echo '                <li>✅ AWS S3 Document Storage</li>' >> opensign-placeholder/server.js && \
-    echo '                <li>✅ Audit Trails & Compliance</li>' >> opensign-placeholder/server.js && \
-    echo '            </ul>' >> opensign-placeholder/server.js && \
-    echo '            <p style="margin-top: 30px; opacity: 0.8;">The complete OpenSign solution will be available shortly with full document signing capabilities.</p>' >> opensign-placeholder/server.js && \
-    echo '        </div>' >> opensign-placeholder/server.js && \
-    echo '    </body>' >> opensign-placeholder/server.js && \
-    echo '    </html>' >> opensign-placeholder/server.js && \
-    echo '  `);' >> opensign-placeholder/server.js && \
-    echo '});' >> opensign-placeholder/server.js && \
-    echo '' >> opensign-placeholder/server.js && \
-    echo 'app.listen(port, () => {' >> opensign-placeholder/server.js && \
-    echo '  console.log(`OpenSign placeholder running on port ${port}`);' >> opensign-placeholder/server.js && \
-    echo '});' >> opensign-placeholder/server.js
+# Clone and setup OpenSign properly
+RUN git clone --depth 1 https://github.com/OpenSignLabs/OpenSign.git opensign
+
+# Setup OpenSign according to official documentation
+WORKDIR /app/opensign
+
+# Check what environment files exist and copy the appropriate one
+RUN ls -la .env* || echo "No .env files found"
+
+# Copy environment file (try multiple possible names)
+RUN if [ -f .env.frontend_dev ]; then \
+        cp .env.frontend_dev apps/OpenSign/.env; \
+    elif [ -f .env.local_dev ]; then \
+        cp .env.local_dev apps/OpenSign/.env; \
+    elif [ -f .env.example ]; then \
+        cp .env.example apps/OpenSign/.env; \
+    else \
+        echo "Creating basic .env file"; \
+        echo "NEXT_PUBLIC_PARSE_APP_ID=opensign" > apps/OpenSign/.env; \
+        echo "NEXT_PUBLIC_PARSE_SERVER_URL=https://staging-backend.opensignlabs.com/api/v1" >> apps/OpenSign/.env; \
+        echo "NEXT_PUBLIC_PARSE_JS_KEY=Bvby0xKDJTBYUEAXUBfS" >> apps/OpenSign/.env; \
+    fi
+
+# Install root dependencies
+RUN npm install
+
+# Install OpenSign app dependencies
+WORKDIR /app/opensign/apps/OpenSign
+RUN npm install
+
+# Go back to main app directory
+WORKDIR /app
 
 # Create nginx configuration
-RUN echo 'events { worker_connections 1024; }' > /etc/nginx/nginx.conf && \
-    echo 'http {' >> /etc/nginx/nginx.conf && \
-    echo '    include /etc/nginx/mime.types;' >> /etc/nginx/nginx.conf && \
-    echo '    default_type application/octet-stream;' >> /etc/nginx/nginx.conf && \
-    echo '    upstream landing { server 127.0.0.1:8080; }' >> /etc/nginx/nginx.conf && \
-    echo '    upstream n8n_backend { server 127.0.0.1:5678; }' >> /etc/nginx/nginx.conf && \
-    echo '    upstream opensign_placeholder { server 127.0.0.1:3001; }' >> /etc/nginx/nginx.conf && \
-    echo '    server {' >> /etc/nginx/nginx.conf && \
-    echo '        listen 80;' >> /etc/nginx/nginx.conf && \
-    echo '        location / {' >> /etc/nginx/nginx.conf && \
-    echo '            proxy_pass http://landing/;' >> /etc/nginx/nginx.conf && \
-    echo '            proxy_set_header Host $host;' >> /etc/nginx/nginx.conf && \
-    echo '            proxy_set_header X-Real-IP $remote_addr;' >> /etc/nginx/nginx.conf && \
-    echo '        }' >> /etc/nginx/nginx.conf && \
-    echo '        location /n8n/ {' >> /etc/nginx/nginx.conf && \
-    echo '            proxy_pass http://n8n_backend/;' >> /etc/nginx/nginx.conf && \
-    echo '            proxy_set_header Host $host;' >> /etc/nginx/nginx.conf && \
-    echo '            proxy_set_header X-Real-IP $remote_addr;' >> /etc/nginx/nginx.conf && \
-    echo '            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' >> /etc/nginx/nginx.conf && \
-    echo '            proxy_set_header X-Forwarded-Proto $scheme;' >> /etc/nginx/nginx.conf && \
-    echo '        }' >> /etc/nginx/nginx.conf && \
-    echo '        location /opensign/ {' >> /etc/nginx/nginx.conf && \
-    echo '            proxy_pass http://opensign_placeholder/;' >> /etc/nginx/nginx.conf && \
-    echo '            proxy_set_header Host $host;' >> /etc/nginx/nginx.conf && \
-    echo '            proxy_set_header X-Real-IP $remote_addr;' >> /etc/nginx/nginx.conf && \
-    echo '        }' >> /etc/nginx/nginx.conf && \
-    echo '    }' >> /etc/nginx/nginx.conf && \
-    echo '}' >> /etc/nginx/nginx.conf
+RUN mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
 
-# Create startup script
-RUN echo '#!/bin/bash' > /app/start-services.sh && \
-    echo 'set -e' >> /app/start-services.sh && \
-    echo '' >> /app/start-services.sh && \
-    echo '# Start Landing Page' >> /app/start-services.sh && \
-    echo 'echo "🚀 Starting Landing Page on port 8080..."' >> /app/start-services.sh && \
-    echo 'cd /app && node server.js &' >> /app/start-services.sh && \
-    echo '' >> /app/start-services.sh && \
-    echo '# Start OpenSign Placeholder' >> /app/start-services.sh && \
-    echo 'echo "🚀 Starting OpenSign Placeholder on port 3001..."' >> /app/start-services.sh && \
-    echo 'cd /app/opensign-placeholder && node server.js &' >> /app/start-services.sh && \
-    echo '' >> /app/start-services.sh && \
-    echo '# Start n8n' >> /app/start-services.sh && \
-    echo 'echo "🚀 Starting n8n on port 5678..."' >> /app/start-services.sh && \
-    echo 'N8N_PORT=5678 n8n start &' >> /app/start-services.sh && \
-    echo '' >> /app/start-services.sh && \
-    echo '# Start nginx' >> /app/start-services.sh && \
-    echo 'echo "🚀 Starting nginx reverse proxy on port 80..."' >> /app/start-services.sh && \
-    echo 'nginx -g "daemon off;" &' >> /app/start-services.sh && \
-    echo '' >> /app/start-services.sh && \
-    echo '# Wait for services to be ready' >> /app/start-services.sh && \
-    echo 'sleep 30' >> /app/start-services.sh && \
-    echo '' >> /app/start-services.sh && \
-    echo 'echo "✅ All services started successfully!"' >> /app/start-services.sh && \
-    echo 'echo "📋 Service Status:"' >> /app/start-services.sh && \
-    echo 'echo "   Landing Page: http://localhost:8080 (via / path)"' >> /app/start-services.sh && \
-    echo 'echo "   n8n: http://localhost:5678 (via /n8n/ path)"' >> /app/start-services.sh && \
-    echo 'echo "   OpenSign: http://localhost:3001 (via /opensign/ path)"' >> /app/start-services.sh && \
-    echo '' >> /app/start-services.sh && \
-    echo '# Keep container running' >> /app/start-services.sh && \
-    echo 'wait' >> /app/start-services.sh && \
-    chmod +x /app/start-services.sh
+# Copy nginx config
+COPY nginx.with-opensign.conf /etc/nginx/nginx.conf
 
+# Create directories and set permissions
+RUN mkdir -p /var/log/nginx /var/lib/nginx/body /var/lib/nginx/fastcgi \
+    && chown -R www-data:www-data /var/log/nginx /var/lib/nginx \
+    && chmod 755 /var/log/nginx
+
+# Expose port
 EXPOSE 80
 
-CMD ["/app/start-services.sh"] 
+# Set environment variables for n8n
+ENV N8N_HOST=0.0.0.0
+ENV N8N_PORT=5678
+ENV NODE_ENV=production
+ENV N8N_BASIC_AUTH_ACTIVE=false
+ENV N8N_SECURE_COOKIE=false
+ENV WEBHOOK_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/
+ENV N8N_EDITOR_BASE_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/n8n/
+ENV N8N_PATH=/n8n/
+
+# Create startup script (all services working with REAL OpenSign)
+RUN echo '#!/bin/bash\nset -e\necho "Starting all services..."\n# Start landing page in background with explicit port\nPORT=8080 node /app/server.js &\n# Start n8n in background\nn8n start &\n# Start REAL OpenSign in background (real app on port 3001)\ncd /app/opensign/apps/OpenSign && PORT=3001 npm run start-dev &\n# Give services time to start\nsleep 10\n# Start nginx in foreground\nnginx -g "daemon off;"' > /app/start.sh && chmod +x /app/start.sh
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:80/ || exit 1
+
+# Start all services
+CMD ["/app/start.sh"] 

@@ -1,5 +1,5 @@
 name: unified-minimal-platform
-# Working Landing Page + n8n Platform (RESTORED)
+# Working Landing Page + n8n Platform (FORCE REBUILD - No OpenSign)
 services:
 - build_command: ""
   dockerfile_path: Dockerfile.n8n-simple
