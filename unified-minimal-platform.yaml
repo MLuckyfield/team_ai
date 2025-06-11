@@ -1,8 +1,7 @@
 name: unified-minimal-platform
 services:
 - build_command: ""
-  dockerfile_path: Dockerfile.minimal
-  environment_slug: docker
+  dockerfile_path: Dockerfile.n8n-simple
   github:
     branch: main
     deploy_on_push: true
