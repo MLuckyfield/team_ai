@@ -1,10 +1,13 @@
-FROM node:18-slim
+FROM node:20-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
     supervisor \
     nginx \
+    python3 \
+    python3-pip \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Create necessary directories and set permissions
@@ -17,9 +20,14 @@ WORKDIR /app
 COPY server.js ./
 COPY package.json ./
 COPY index.html ./
+COPY startup.sh ./
 
-# Install n8n globally
-RUN npm install -g n8n@1.70.1
+# Make startup script executable
+RUN chmod +x startup.sh
+
+# Install n8n globally with simpler approach
+RUN npm config set registry https://registry.npmjs.org/ && \
+    npm install -g n8n@1.70.1 --timeout=300000
 
 # Install landing page dependencies
 RUN npm install
@@ -41,9 +49,9 @@ ENV N8N_HOST=0.0.0.0
 ENV N8N_PORT=5678
 ENV NODE_ENV=production
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost/health || exit 1
+# Health check - more lenient for cloud deployment
+HEALTHCHECK --interval=60s --timeout=30s --start-period=120s --retries=5 \
+    CMD curl -f http://localhost/health || curl -f http://localhost:8080/health || exit 1
 
-# Start supervisor
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 
+# Start using our startup script
+CMD ["./startup.sh"] 
