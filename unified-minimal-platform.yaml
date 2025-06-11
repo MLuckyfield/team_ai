@@ -1,8 +1,8 @@
 name: unified-minimal-platform
-# Complete OpenSign Stack - Frontend + Backend + Database + n8n + Landing Page
+# Restored working configuration: Landing Page + n8n + OpenSign Placeholder
 services:
 - build_command: ""
-  dockerfile_path: Dockerfile.full-opensign
+  dockerfile_path: Dockerfile.working-simple
   github:
     branch: main
     deploy_on_push: true
