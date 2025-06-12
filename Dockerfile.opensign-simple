@@ -1,76 +1,60 @@
-FROM opensign/opensign:main as opensign-client
-FROM opensign/opensignserver:main as opensign-server
-
 FROM node:20-slim
 
-# Install system dependencies and MongoDB
+# Install system dependencies (excluding MongoDB for now - use external service)
 RUN apt-get update && apt-get install -y \
     curl \
-    nginx \
     supervisor \
-    gnupg \
-    ca-certificates \
-    lsb-release \
-    && curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor \
-    && echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-7.0.list \
-    && apt-get update \
-    && apt-get install -y mongodb-org \
+    nginx \
+    python3 \
+    python3-pip \
+    build-essential \
+    git \
     && rm -rf /var/lib/apt/lists/*
+
+# Create necessary directories and set permissions
+RUN mkdir -p /var/log/supervisor /var/run/supervisor
 
 WORKDIR /app
 
-# Copy application files for landing page
+# Copy existing working files
 COPY server.js ./
 COPY package.json ./
 COPY index.html ./
 
-# Install dependencies for landing page
+# Install n8n globally (keep our proven approach)
+RUN npm config set registry https://registry.npmjs.org/ && \
+    npm install -g n8n@1.70.1 --timeout=300000
+
+# Install landing page dependencies
 RUN npm install
 
-# Install n8n globally
-RUN npm install -g n8n@1.70.1
+# Clone OpenSign and set up
+RUN git clone https://github.com/OpenSignLabs/OpenSign.git /opensign \
+    && cd /opensign \
+    && git checkout main
 
-# Create directories for all services
-RUN mkdir -p /var/log/supervisor /var/run/supervisor \
-    /var/log/nginx /var/lib/nginx/body /var/lib/nginx/fastcgi \
-    /data/db /app/opensign-client /app/opensign-server \
-    && chown -R www-data:www-data /var/log/nginx /var/lib/nginx \
-    && chmod 755 /var/log/nginx /var/log/supervisor /var/run/supervisor
+# Install OpenSign Server dependencies
+RUN cd /opensign/apps/OpenSignServer \
+    && npm install --production
 
-# Copy OpenSign client from official image
-COPY --from=opensign-client /usr/src/app /app/opensign-client
-WORKDIR /app/opensign-client
-RUN npm install --production --silent
+# Install OpenSign Client dependencies and build
+RUN cd /opensign/apps/OpenSign \
+    && npm install \
+    && npm run build
 
-# Copy OpenSign server from official image  
-COPY --from=opensign-server /usr/src/app /app/opensign-server
-WORKDIR /app/opensign-server
-RUN npm install --production --silent
-
-# Go back to main directory
-WORKDIR /app
-
-# Create environment file for OpenSign
-RUN echo 'PUBLIC_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/opensign' > /app/.env.opensign \
-    && echo 'GENERATE_SOURCEMAP=false' >> /app/.env.opensign \
-    && echo 'REACT_APP_SERVERURL=https://unified-minimal-platform-5p64u.ondigitalocean.app/opensign-api' >> /app/.env.opensign \
-    && echo 'REACT_APP_APPID=opensign' >> /app/.env.opensign \
-    && echo 'appName=OpenSign' >> /app/.env.opensign \
-    && echo 'MASTER_KEY=XnAadwKxxByMr123' >> /app/.env.opensign \
-    && echo 'MONGODB_URI=mongodb://127.0.0.1:27017/OpenSignDB' >> /app/.env.opensign \
-    && echo 'PARSE_MOUNT=/app' >> /app/.env.opensign \
-    && echo 'SERVER_URL=http://127.0.0.1:8081/app' >> /app/.env.opensign \
-    && echo 'USE_LOCAL=true' >> /app/.env.opensign \
-    && echo 'SMTP_ENABLE=false' >> /app/.env.opensign \
-    && echo 'PFX_BASE64=' >> /app/.env.opensign \
-    && echo 'PASS_PHRASE=opensign' >> /app/.env.opensign \
-    && echo 'APP_ID=opensign' >> /app/.env.opensign
-
-# Copy nginx and supervisor configurations
+# Copy config files
 COPY nginx.opensign-simple.conf /etc/nginx/nginx.conf
 COPY supervisord.opensign-simple.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Set environment variables
+# Create nginx directories and fix permissions
+RUN mkdir -p /var/log/nginx /var/lib/nginx/body /var/lib/nginx/fastcgi \
+    && chown -R www-data:www-data /var/log/nginx /var/lib/nginx \
+    && chmod 755 /var/log/nginx
+
+# Expose port 80 only (nginx handles internal routing)
+EXPOSE 80
+
+# Set environment variables for our platform
 ENV N8N_HOST=0.0.0.0
 ENV N8N_PORT=5678
 ENV NODE_ENV=production
@@ -80,11 +64,18 @@ ENV WEBHOOK_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/
 ENV N8N_EDITOR_BASE_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/n8n/
 ENV N8N_PATH=/n8n/
 
-# Expose port
-EXPOSE 80
+# OpenSign environment variables (using MongoDB Atlas or external service)
+ENV PUBLIC_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/opensign/
+ENV MASTER_KEY=XnAadwKxxByMr
+ENV MONGODB_URI=mongodb+srv://opensign:opensign123@cluster0.mongodb.net/OpenSignDB
+ENV PARSE_MOUNT=/app
+ENV SERVER_URL=http://localhost:1337/app
+ENV USE_LOCAL=true
+ENV APP_ID=opensign
 
 # Health check
 HEALTHCHECK --interval=60s --timeout=30s --start-period=120s --retries=3 \
-    CMD curl -f http://localhost/ || exit 1
+    CMD curl -f http://localhost/health || exit 1
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 
+# Start with simple script
+CMD ["/bin/bash", "-c", "rm -f /var/run/supervisor.sock && mkdir -p /var/log/supervisor /var/run/supervisor && /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"] 
