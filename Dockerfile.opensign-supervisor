@@ -23,6 +23,7 @@ RUN wget -qO - https://www.mongodb.org/static/pgp/server-7.0.asc | apt-key add -
 # Create necessary directories and set permissions
 RUN mkdir -p /var/log/supervisor /var/run/supervisor /var/lib/mongodb /var/log/mongodb \
     && chmod 755 /var/log/supervisor /var/run/supervisor /var/lib/mongodb /var/log/mongodb \
+    && chown -R root:root /var/run/supervisor /var/log/supervisor \
     && chown mongodb:mongodb /var/lib/mongodb /var/log/mongodb
 
 WORKDIR /app
@@ -76,8 +77,8 @@ COPY nginx.opensign-supervisor.conf /etc/nginx/nginx.conf
 COPY supervisord.opensign-supervisor.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Create nginx directories and fix permissions
-RUN mkdir -p /var/log/nginx /var/lib/nginx/body /var/lib/nginx/fastcgi \
-    && chown -R www-data:www-data /var/log/nginx /var/lib/nginx \
+RUN mkdir -p /var/log/nginx /var/lib/nginx/body /var/lib/nginx/fastcgi /var/cache/nginx \
+    && chown -R www-data:www-data /var/log/nginx /var/lib/nginx /var/cache/nginx \
     && chmod 755 /var/log/nginx
 
 # Expose port 80 only (nginx handles internal routing)
@@ -93,9 +94,9 @@ ENV WEBHOOK_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/
 ENV N8N_EDITOR_BASE_URL=https://unified-minimal-platform-5p64u.ondigitalocean.app/n8n/
 ENV N8N_PATH=/n8n/
 
-# Health check
-HEALTHCHECK --interval=60s --timeout=30s --start-period=240s --retries=3 \
+# Health check - adjust timing for slower startup
+HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=5 \
     CMD curl -f http://localhost/health || exit 1
 
-# Start with supervisor managing all services
-CMD ["/bin/bash", "-c", "rm -f /var/run/supervisor.sock && mkdir -p /var/log/supervisor /var/run/supervisor && /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"] 
+# Start with supervisor managing all services - proper socket handling
+CMD ["sh", "-c", "rm -f /var/run/supervisor/supervisor.sock && chmod 700 /var/run/supervisor && exec /usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf"] 

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   server:
     image: opensign/opensignserver:main
@@ -52,50 +50,9 @@ services:
       - app-network
     environment:
       - HOST_URL=${HOST_URL:-localhost:3001}
-  n8n:
-    image: n8nio/n8n
-    ports:
-      - "5678:5678"
-    environment:
-      - N8N_HOST=${N8N_HOST:-localhost}
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - NODE_ENV=production
-      - N8N_EDITOR_BASE_URL=/
-    volumes:
-      - n8n_data:/home/node/.n8n
-    networks:
-      - app-network
-    restart: unless-stopped
-  crawl4ai:
-    image: unclecode/crawl4ai:latest
-    ports:
-      - "11235:11235"
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - GROQ_API_KEY=${GROQ_API_KEY:-}
-      - TOGETHER_API_KEY=${TOGETHER_API_KEY:-}
-      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
-      - GEMINI_API_TOKEN=${GEMINI_API_TOKEN:-}
-    volumes:
-      - /dev/shm:/dev/shm
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-        reservations:
-          memory: 1G
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11235/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - app-network
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   data-volume:
@@ -103,8 +60,3 @@ volumes:
   caddy_data:
   caddy_config:
   opensign-files:
-  n8n_data:
-
-networks:
-  app-network:
-    driver: bridge

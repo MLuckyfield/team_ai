@@ -4,7 +4,7 @@ services:
   image:
     registry_type: DOCKER_HUB
     registry: docker.n8n.io/n8nio/n8n
-    tag: latest
+    tag: 1.24.0
   instance_count: 1
   instance_size_slug: basic-xs
   routes:
@@ -22,8 +22,13 @@ services:
     value: sqlite
   - key: N8N_USER_FOLDER
     value: /home/node/.n8n
+  - key: N8N_AI_ENABLED
+    value: "true"
+  mounts:
+  - source: n8n-data
+    target: /home/node/.n8n
 
 volumes:
 - name: n8n-data
-  size: 5GB
-  mount_path: /home/node/.n8n 
+  type: data
+  size_gb: 5 
