@@ -1,6 +1,7 @@
-FROM node:18-slim
+# Multi-stage build for production optimization
+FROM node:18-slim as builder
 
-# Install system dependencies for Chrome and Crawlee
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
@@ -8,33 +9,69 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Chrome
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+# Install Chrome with updated key handling
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update \
     && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
+# Production stage
+FROM node:18-slim
+
+# Install runtime dependencies and security updates
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    ca-certificates \
+    curl \
+    dumb-init \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Chrome with proper key handling
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN groupadd -r crawlee && useradd -r -g crawlee -s /bin/bash crawlee
+
+# Create app directory with proper permissions
 WORKDIR /app
+RUN chown crawlee:crawlee /app
 
-# Copy package files
+# Copy package files and install dependencies as root first
 COPY package*.json ./
-
-# Install dependencies
-RUN npm ci --only=production
+RUN npm ci --only=production --no-audit --no-fund \
+    && npm cache clean --force
 
 # Copy source code
 COPY crawlee-server.js ./
 
-# Create storage directory
-RUN mkdir -p /app/storage
+# Create storage directory with proper permissions
+RUN mkdir -p /app/storage \
+    && chown -R crawlee:crawlee /app
+
+# Switch to non-root user
+USER crawlee
 
 # Expose port
 EXPOSE 3001
 
-# Set Chrome path for Crawlee
+# Environment variables
+ENV NODE_ENV=production
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
+ENV PUPPETEER_ARGS="--no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage"
+
+# Health check (internal)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:3001/health || exit 1
+
+# Use dumb-init for proper signal handling
+ENTRYPOINT ["dumb-init", "--"]
 
 # Run the application
 CMD ["node", "crawlee-server.js"] 
