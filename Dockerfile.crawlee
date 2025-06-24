@@ -1,47 +1,14 @@
-# Multi-stage build for production optimization
-FROM node:18-slim as builder
+# Use Node.js base image (Ubuntu-based)
+FROM node:18-bookworm
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    ca-certificates \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Chrome with updated key handling
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
-    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
-    && rm -rf /var/lib/apt/lists/*
-
-# Production stage
-FROM node:18-slim
-
-# Install runtime dependencies and security updates
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    ca-certificates \
-    curl \
-    dumb-init \
-    && apt-get upgrade -y \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Chrome with proper key handling
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
-    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create non-root user for security
-RUN groupadd -r crawlee && useradd -r -g crawlee -s /bin/bash crawlee
-
-# Create app directory with proper permissions
+# Create app directory
 WORKDIR /app
-RUN chown crawlee:crawlee /app
+
+# Install system dependencies that Playwright might need
+RUN apt-get update && apt-get install -y \
+    dumb-init \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy package files and install dependencies as root first
 COPY package*.json ./
@@ -52,20 +19,15 @@ RUN npm install --only=production --no-audit --no-fund \
 # Copy source code
 COPY crawlee-server.js ./
 
-# Create storage directory with proper permissions
-RUN mkdir -p /app/storage \
-    && chown -R crawlee:crawlee /app
-
-# Switch to non-root user
-USER crawlee
+# Create storage directory
+RUN mkdir -p /app/storage
 
 # Expose port
 EXPOSE 3001
 
 # Environment variables
 ENV NODE_ENV=production
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
-ENV PUPPETEER_ARGS="--no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage"
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # Health check (internal)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
