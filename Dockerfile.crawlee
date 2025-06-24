@@ -46,6 +46,7 @@ RUN chown crawlee:crawlee /app
 # Copy package files and install dependencies as root first
 COPY package*.json ./
 RUN npm install --only=production --no-audit --no-fund \
+    && npx playwright install --with-deps chromium \
     && npm cache clean --force
 
 # Copy source code
