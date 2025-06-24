@@ -40,7 +40,7 @@ services:
       N8N_USER_MANAGEMENT_DISABLED: "false"
       N8N_METRICS: "true"
       N8N_LOG_LEVEL: info
-EXECUTIONS_PROCESS: main
+      EXECUTIONS_PROCESS: main
       EXECUTIONS_DATA_SAVE_ON_ERROR: all
       EXECUTIONS_DATA_SAVE_ON_SUCCESS: all
       EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS: "true"
@@ -57,12 +57,43 @@ EXECUTIONS_PROCESS: main
       postgres:
         condition: service_healthy
 
+  crawlee:
+    build:
+      context: .
+      dockerfile: Dockerfile.crawlee
+    container_name: crawlee_service
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    ports:
+      - "3001:3001"
+    networks:
+      - n8n_network
+    volumes:
+      - crawlee_data:/app/storage
+      - /dev/shm:/dev/shm
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
 volumes:
   postgres_data:
     driver: local
   n8n_data:
     driver: local
   n8n_files:
+    driver: local
+  crawlee_data:
     driver: local
 
 networks:
