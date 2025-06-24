@@ -45,7 +45,7 @@ RUN chown crawlee:crawlee /app
 
 # Copy package files and install dependencies as root first
 COPY package*.json ./
-RUN npm ci --only=production --no-audit --no-fund \
+RUN npm install --only=production --no-audit --no-fund \
     && npm cache clean --force
 
 # Copy source code
