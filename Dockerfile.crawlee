@@ -13,11 +13,13 @@ RUN apt-get update && apt-get install -y \
 # Copy package files and install dependencies as root first
 COPY package*.json ./
 RUN npm install --only=production --no-audit --no-fund \
-    && npx playwright install --with-deps chromium \
     && npm cache clean --force
 
 # Copy source code
 COPY crawlee-server.js ./
+
+# Install Playwright browsers after all dependencies are ready
+RUN npx playwright install --with-deps chromium
 
 # Create storage directory
 RUN mkdir -p /app/storage
@@ -27,7 +29,6 @@ EXPOSE 3001
 
 # Environment variables
 ENV NODE_ENV=production
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # Health check (internal)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
