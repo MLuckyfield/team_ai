@@ -236,6 +236,7 @@ app.post('/analyze', async (req, res) => {
         const crawler = new PlaywrightCrawler({
             maxRequestsPerCrawl: 1,
             headless: true,
+            requestHandlerTimeoutSecs: 120, // Increase timeout to 2 minutes
             launchContext: {
                 launchOptions: {
                     args: [
@@ -258,15 +259,23 @@ app.post('/analyze', async (req, res) => {
                 // Wait for selector if specified
                 if (waitForSelector) {
                     try {
-                        await page.waitForSelector(waitForSelector, { timeout: 10000 });
+                        await page.waitForSelector(waitForSelector, { timeout: 15000 });
                         log.info(`Successfully waited for selector: ${waitForSelector}`);
                     } catch (error) {
                         log.warning(`Selector ${waitForSelector} not found, continuing anyway`);
                     }
+                } else {
+                    // For pages like Yahoo Finance, wait for network to be mostly idle
+                    try {
+                        await page.waitForLoadState('networkidle', { timeout: 30000 });
+                        log.info('Page network activity settled');
+                    } catch (error) {
+                        log.warning('Network idle timeout, continuing anyway');
+                    }
                 }
 
-                // Give page time to fully load
-                await page.waitForTimeout(2000);
+                // Give page additional time to fully render dynamic content
+                await page.waitForTimeout(3000);
 
                 // Get page data for AI analysis
                 result = {
