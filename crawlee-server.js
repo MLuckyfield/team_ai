@@ -237,6 +237,7 @@ app.post('/analyze', async (req, res) => {
             error: 'Analysis not completed - no request processed'
         };
 
+        // Create a new crawler instance for each request to avoid reuse issues
         const crawler = new PlaywrightCrawler({
             maxRequestsPerCrawl: 1,
             headless: true,
@@ -435,6 +436,13 @@ app.post('/analyze', async (req, res) => {
                 errorType: 'CRAWLER_ERROR',
                 timestamp: new Date().toISOString()
             };
+        } finally {
+            // Ensure crawler is properly cleaned up
+            try {
+                await crawler.teardown();
+            } catch (teardownError) {
+                console.warn('Crawler teardown warning:', teardownError.message);
+            }
         }
 
         // Always return the result, whether successful or not
