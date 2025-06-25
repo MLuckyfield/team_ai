@@ -218,28 +218,28 @@ app.post('/extract', async (req, res) => {
 
 // AI-focused endpoint: Get page analysis data (screenshot + HTML)
 app.post('/analyze', async (req, res) => {
-    let crawler = null;
+    const { 
+        url, 
+        waitForSelector = null, // Optional: if not provided, waits for network idle instead
+        fullPage = false,
+        viewportWidth = 1280,
+        viewportHeight = 720
+    } = req.body;
+
+    if (!url) {
+        return res.status(400).json({ error: 'URL is required' });
+    }
+
+    console.log(`\n=== Starting new analysis request for: ${url} ===`);
     
+    let crawler = null;
+    let requestResult = {
+        url: url,
+        success: false,
+        error: 'Analysis not completed - no request processed'
+    };
+
     try {
-        const { 
-            url, 
-            waitForSelector = null, // Optional: if not provided, waits for network idle instead
-            fullPage = false,
-            viewportWidth = 1280,
-            viewportHeight = 720
-        } = req.body;
-
-        if (!url) {
-            return res.status(400).json({ error: 'URL is required' });
-        }
-
-        // Use a unique result object for this request to avoid any shared state issues
-        let requestResult = {
-            url: url,
-            success: false,
-            error: 'Analysis not completed - no request processed'
-        };
-
         // Create a completely fresh crawler instance for each request
         crawler = new PlaywrightCrawler({
             maxRequestsPerCrawl: 1,
@@ -437,46 +437,42 @@ app.post('/analyze', async (req, res) => {
             }
         });
 
-        try {
-            await crawler.addRequests([{ url }]);
-            await crawler.run();
-        } catch (crawlerError) {
-            console.error('Crawler execution error:', crawlerError);
-            requestResult = {
-                success: false,
-                url: url,
-                error: `Analysis failed - Crawler error: ${crawlerError.message}`,
-                errorType: 'CRAWLER_ERROR',
-                timestamp: new Date().toISOString()
-            };
-        } finally {
-            // Ensure crawler is properly cleaned up
-            if (crawler) {
-                try {
-                    await crawler.teardown();
-                    console.log('Crawler teardown completed successfully');
-                } catch (teardownError) {
-                    console.warn('Crawler teardown warning:', teardownError.message);
-                }
-            }
-        }
-
-        // Always return the result, whether successful or not
-        if (requestResult.success) {
-            res.json(requestResult);
-        } else {
-            res.status(500).json(requestResult);
-        }
+        // Add request and run crawler
+        console.log(`Adding request to crawler: ${url}`);
+        await crawler.addRequests([{ url }]);
+        console.log(`Request added successfully, starting crawler...`);
+        
+        await crawler.run();
+        console.log(`Crawler run completed`);
 
     } catch (error) {
         console.error('Analysis error:', error);
-        res.status(500).json({
+        requestResult = {
             success: false,
             error: `Analysis failed - Server error: ${error.message}`,
             errorType: 'SERVER_ERROR',
             timestamp: new Date().toISOString()
-        });
+        };
+    } finally {
+        // Ensure crawler is properly cleaned up
+        if (crawler) {
+            try {
+                await crawler.teardown();
+                console.log('Crawler teardown completed successfully');
+            } catch (teardownError) {
+                console.warn('Crawler teardown warning:', teardownError.message);
+            }
+        }
     }
+
+    // Always return the result, whether successful or not
+    console.log(`=== Analysis complete. Success: ${requestResult.success} ===`);
+    if (requestResult.success) {
+        res.json(requestResult);
+    } else {
+        res.status(500).json(requestResult);
+    }
+
 });
 
 // AI-focused endpoint: Scrape with AI-generated selectors
