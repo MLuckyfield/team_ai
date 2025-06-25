@@ -221,7 +221,7 @@ app.post('/analyze', async (req, res) => {
     try {
         const { 
             url, 
-            waitForSelector = null, 
+            waitForSelector = null, // Optional: if not provided, waits for network idle instead
             fullPage = false,
             viewportWidth = 1280,
             viewportHeight = 720
@@ -630,7 +630,7 @@ app.get('/', (req, res) => {
                 description: 'Get page screenshot and HTML for AI analysis',
                 parameters: {
                     url: 'URL to analyze (required)',
-                    waitForSelector: 'Wait for specific selector before analysis (optional)',
+                    waitForSelector: 'Wait for specific selector before analysis (optional - if not provided, waits for network idle)',
                     fullPage: 'Take full page screenshot (default: false)',
                     viewportWidth: 'Browser viewport width (default: 1280)',
                     viewportHeight: 'Browser viewport height (default: 720)'
@@ -640,7 +640,21 @@ app.get('/', (req, res) => {
                     html: 'Clean HTML content (scripts/styles removed)',
                     pageInfo: 'Basic page structure information',
                     title: 'Page title',
-                    url: 'Processed URL'
+                    url: 'Processed URL',
+                    extractionInfo: 'Information about selector waiting and HTML extraction method used'
+                },
+                examples: {
+                    'Basic usage (no selector)': {
+                        url: 'https://example.com'
+                    },
+                    'With specific selector': {
+                        url: 'https://example.com',
+                        waitForSelector: '.content'
+                    },
+                    'Full page screenshot': {
+                        url: 'https://example.com',
+                        fullPage: true
+                    }
                 }
             },
             scrapeWithSelectors: {
