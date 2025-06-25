@@ -1,0 +1,43 @@
+# Use Node.js base image (Ubuntu-based)
+FROM node:18-bookworm
+
+# Create app directory
+WORKDIR /app
+
+# Install system dependencies that Playwright might need
+RUN apt-get update && apt-get install -y \
+    dumb-init \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy package files and install dependencies as root first
+COPY package*.json ./
+RUN npm install --only=production --no-audit --no-fund \
+    && npm cache clean --force
+
+# Copy source code
+COPY crawlee-server.js ./
+COPY cron.js ./
+COPY routes/ ./routes/
+
+# Install Playwright browsers after all dependencies are ready
+RUN npx playwright install --with-deps chromium
+
+# Create storage directory
+RUN mkdir -p /app/storage
+
+# Expose port
+EXPOSE 3001
+
+# Environment variables
+ENV NODE_ENV=production
+
+# Health check (internal)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:3001/health || exit 1
+
+# Use dumb-init for proper signal handling
+ENTRYPOINT ["dumb-init", "--"]
+
+# Run the application
+CMD ["node", "crawlee-server.js"] 

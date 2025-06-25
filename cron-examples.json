@@ -1,0 +1,74 @@
+{
+  "examples": {
+    "daily_report": {
+      "cronId": "daily-report",
+      "description": "Trigger daily report generation at 9 AM",
+      "schedule": "0 9 * * *",
+      "webhookIds": ["daily-report-webhook"],
+      "payload": {
+        "reportType": "daily",
+        "recipients": ["admin@company.com"]
+      },
+      "timezone": "America/New_York"
+    },
+    "hourly_monitoring": {
+      "cronId": "monitoring-check",
+      "description": "Monitor system health every hour",
+      "schedule": "0 * * * *",
+      "webhookIds": ["health-check-webhook", "metrics-webhook"],
+      "payload": {
+        "checkType": "automated",
+        "priority": "normal"
+      }
+    },
+    "weekly_cleanup": {
+      "cronId": "weekly-cleanup",
+      "description": "Weekly data cleanup on Sundays at 2 AM",
+      "schedule": "0 2 * * 0",
+      "webhookIds": ["cleanup-webhook"],
+      "payload": {
+        "cleanupType": "weekly",
+        "retentionDays": 30
+      }
+    },
+    "business_hours_sync": {
+      "cronId": "sync-business-hours",
+      "description": "Sync data every 15 minutes during business hours (9-5, Mon-Fri)",
+      "schedule": "*/15 9-17 * * 1-5",
+      "webhookIds": ["data-sync-webhook"],
+      "payload": {
+        "syncType": "incremental",
+        "scope": "business-data"
+      }
+    }
+  },
+  "webhook_urls": {
+    "note": "Your n8n webhook URLs will look like this:",
+    "format": "https://your-n8n-instance.com/webhook/YOUR_WEBHOOK_ID",
+    "current_base": "https://calculated-reviewer-less-except.trycloudflare.com"
+  },
+  "common_schedules": {
+    "every_minute": "* * * * *",
+    "every_5_minutes": "*/5 * * * *",
+    "every_15_minutes": "*/15 * * * *",
+    "every_30_minutes": "*/30 * * * *",
+    "every_hour": "0 * * * *",
+    "every_6_hours": "0 */6 * * *",
+    "daily_9am": "0 9 * * *",
+    "daily_9pm": "0 21 * * *",
+    "twice_daily": "0 9,21 * * *",
+    "weekly_monday_9am": "0 9 * * 1",
+    "monthly_1st_9am": "0 9 1 * *",
+    "workdays_only": "0 9 * * 1-5",
+    "weekends_only": "0 9 * * 0,6"
+  },
+  "usage_instructions": {
+    "1": "Start your server: npm start",
+    "2": "Check cron status: GET http://localhost:3001/cron/status",
+    "3": "Create a cron job: POST http://localhost:3001/cron/jobs with JSON body",
+    "4": "List all jobs: GET http://localhost:3001/cron/jobs",
+    "5": "Test webhook: POST http://localhost:3001/cron/trigger/YOUR_WEBHOOK_ID",
+    "6": "Stop/start job: PATCH http://localhost:3001/cron/jobs/JOB_ID/stop",
+    "7": "Delete job: DELETE http://localhost:3001/cron/jobs/JOB_ID"
+  }
+} 
