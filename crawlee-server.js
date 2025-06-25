@@ -53,6 +53,9 @@ app.post('/analyze', async (req, res) => {
     
     try {
         // Use the exact working configuration from our test
+        // Container-specific configuration
+        const isContainer = process.env.NODE_ENV === 'production';
+        
         crawler = new PlaywrightCrawler({
             headless: true,
             maxConcurrency: 1,
@@ -60,13 +63,33 @@ app.post('/analyze', async (req, res) => {
             requestHandlerTimeoutSecs: Math.ceil(timeout / 1000) + 5,
             navigationTimeoutSecs: Math.ceil(timeout / 1000),
             
+            // Force memory storage in containers to avoid persistent storage issues
+            ...(isContainer && {
+                requestQueueOptions: {
+                    forceCloud: false,
+                    clientOptions: {
+                        forceMemoryStorage: true
+                    }
+                }
+            }),
+            
             launchContext: {
                 launchOptions: {
                     headless: true,
                     args: [
                         '--no-sandbox',
                         '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage'
+                        '--disable-dev-shm-usage',
+                        ...(isContainer ? [
+                            '--disable-gpu',
+                            '--no-zygote',
+                            '--single-process',
+                            '--disable-background-timer-throttling',
+                            '--disable-backgrounding-occluded-windows',
+                            '--disable-renderer-backgrounding',
+                            '--disable-features=TranslateUI',
+                            '--disable-ipc-flooding-protection'
+                        ] : [])
                     ]
                 }
             },
@@ -176,21 +199,21 @@ app.post('/analyze', async (req, res) => {
         global.crawleeResult = null;
 
         console.log('Starting crawler...');
-        console.log(`Adding URL to queue: ${url}`);
         
-        // Try different approaches to ensure the request is processed
-        try {
-            // Method 1: Add requests explicitly first
-            await crawler.addRequests([{ url: url, userData: { timeout, waitForSelector } }]);
-            console.log('Request added to queue successfully');
-            
-            console.log('Running crawler...');
-            await crawler.run();
-        } catch (addRequestError) {
-            console.log('Method 1 failed, trying method 2:', addRequestError.message);
-            // Method 2: Use the original run method with URLs
-            await crawler.run([url]);
+        // In container environments, validate browser can start
+        if (process.env.NODE_ENV === 'production') {
+            console.log('Container environment detected, pre-validating browser startup...');
+            try {
+                const testBrowser = await crawler.launchContext.launchOptions();
+                console.log('Browser startup validation successful');
+            } catch (browserError) {
+                console.error('Browser startup validation failed:', browserError.message);
+                throw new Error(`Browser cannot start in container: ${browserError.message}`);
+            }
         }
+        
+        console.log(`Running crawler with URL: ${url}`);
+        await crawler.run([url]);
         
         console.log('Crawler finished, checking results...');
         
