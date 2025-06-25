@@ -60,23 +60,13 @@ app.post('/analyze', async (req, res) => {
             requestHandlerTimeoutSecs: Math.ceil(timeout / 1000) + 5,
             navigationTimeoutSecs: Math.ceil(timeout / 1000),
             
-            // Add explicit storage configuration for container environment
-            persistStorage: false,
-            purgeOnStart: true,
-            
             launchContext: {
                 launchOptions: {
                     headless: true,
                     args: [
                         '--no-sandbox',
                         '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--disable-gpu',
-                        '--disable-extensions',
-                        '--no-first-run',
-                        '--disable-background-timer-throttling',
-                        '--disable-backgrounding-occluded-windows',
-                        '--disable-renderer-backgrounding'
+                        '--disable-dev-shm-usage'
                     ]
                 }
             },
