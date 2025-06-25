@@ -74,7 +74,9 @@ class CronManager {
 
         // Stop existing job if it exists
         if (this.activeCronJobs.has(cronId)) {
-            this.activeCronJobs.get(cronId).task.destroy();
+            const existingJob = this.activeCronJobs.get(cronId);
+            existingJob.task.stop();
+            this.activeCronJobs.delete(cronId);
             console.log(`🗑️ Stopped existing cron job: ${cronId}`);
         }
 
@@ -137,7 +139,7 @@ class CronManager {
                 description: jobData.description,
                 timezone: jobData.timezone,
                 created: jobData.created,
-                isRunning: jobData.task.getStatus() === 'scheduled'
+                isRunning: true // Task is running if it exists in activeCronJobs
             });
         }
 
@@ -169,7 +171,7 @@ class CronManager {
         return {
             success: true,
             message: `Cron job ${cronId} ${action}ed`,
-            status: jobData.task.getStatus()
+            status: action === 'start' ? 'running' : 'stopped'
         };
     }
 
@@ -180,7 +182,7 @@ class CronManager {
         }
 
         const jobData = this.activeCronJobs.get(cronId);
-        jobData.task.destroy();
+        jobData.task.stop();
         this.activeCronJobs.delete(cronId);
         
         console.log(`🗑️ Deleted cron job: ${cronId}`);
@@ -206,7 +208,7 @@ class CronManager {
         const shutdown = () => {
             console.log('🔄 Shutting down cron jobs...');
             for (const [cronId, jobData] of this.activeCronJobs.entries()) {
-                jobData.task.destroy();
+                jobData.task.stop();
                 console.log(`🗑️ Stopped cron job: ${cronId}`);
             }
             process.exit(0);
