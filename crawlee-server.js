@@ -83,24 +83,35 @@ app.post('/analyze', async (req, res) => {
                     if (waitForSelector) {
                         try {
                             await page.waitForSelector(waitForSelector, { 
-                                timeout: timeout,
+                                timeout: Math.min(timeout, 10000), // Cap selector wait at 10s
                                 state: 'visible'
                             });
                             log.info(`Found selector: ${waitForSelector}`);
                         } catch (selectorError) {
-                            log.info(`Selector ${waitForSelector} not found, continuing anyway`);
+                            log.info(`Selector ${waitForSelector} not found, trying fallback selectors...`);
+                            
+                            // Try common fallback selectors for CBOE
+                            const fallbackSelectors = ['main', 'body', '#content', '.main-content'];
+                            for (const selector of fallbackSelectors) {
+                                try {
+                                    await page.waitForSelector(selector, { timeout: 2000, state: 'attached' });
+                                    log.info(`Found fallback selector: ${selector}`);
+                                    break;
+                                } catch {}
+                            }
                         }
                     } else {
                         try {
-                            await page.waitForLoadState('networkidle', { timeout: timeout });
+                            await page.waitForLoadState('networkidle', { timeout: Math.min(timeout, 15000) }); // Cap at 15s
                             log.info('Network idle detected');
                         } catch (idleError) {
-                            await page.waitForLoadState('domcontentloaded', { timeout: timeout });
+                            await page.waitForLoadState('domcontentloaded', { timeout: 5000 }); // Quick fallback
                             log.info('DOM content loaded');
                         }
                     }
 
-                    await page.waitForTimeout(1000);
+                    // Give the page a moment to render
+                    await page.waitForTimeout(2000);
 
                     const title = await page.title();
                     const pageInfo = await page.evaluate(() => ({
@@ -122,7 +133,8 @@ app.post('/analyze', async (req, res) => {
 
                     const screenshot = await page.screenshot({ 
                         type: 'png',
-                        fullPage: false
+                        fullPage: false,
+                        timeout: 10000 // 10 second timeout for screenshot
                     });
 
                     global.crawleeResult = {
