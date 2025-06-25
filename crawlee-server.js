@@ -234,7 +234,7 @@ app.post('/analyze', async (req, res) => {
         let result = {
             url: url,
             success: false,
-            error: 'Analysis not completed'
+            error: 'Analysis not completed - no request processed'
         };
 
         const crawler = new PlaywrightCrawler({
@@ -356,7 +356,8 @@ app.post('/analyze', async (req, res) => {
                     result = {
                         success: false,
                         url: request.url,
-                        error: `Request handler error: ${error.message}`,
+                        error: `Analysis failed - Request handler error: ${error.message}`,
+                        errorType: 'REQUEST_HANDLER_ERROR',
                         timestamp: new Date().toISOString()
                     };
                 }
@@ -366,14 +367,26 @@ app.post('/analyze', async (req, res) => {
                 result = {
                     success: false,
                     url: request.url,
-                    error: 'Failed to load page',
+                    error: 'Analysis failed - Unable to load page (network or browser error)',
+                    errorType: 'PAGE_LOAD_FAILED',
                     timestamp: new Date().toISOString()
                 };
             }
         });
 
-        await crawler.addRequests([{ url }]);
-        await crawler.run();
+        try {
+            await crawler.addRequests([{ url }]);
+            await crawler.run();
+        } catch (crawlerError) {
+            console.error('Crawler execution error:', crawlerError);
+            result = {
+                success: false,
+                url: url,
+                error: `Analysis failed - Crawler error: ${crawlerError.message}`,
+                errorType: 'CRAWLER_ERROR',
+                timestamp: new Date().toISOString()
+            };
+        }
 
         // Always return the result, whether successful or not
         if (result.success) {
@@ -386,7 +399,8 @@ app.post('/analyze', async (req, res) => {
         console.error('Analysis error:', error);
         res.status(500).json({
             success: false,
-            error: error.message,
+            error: `Analysis failed - Server error: ${error.message}`,
+            errorType: 'SERVER_ERROR',
             timestamp: new Date().toISOString()
         });
     }
