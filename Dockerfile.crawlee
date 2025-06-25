@@ -17,6 +17,8 @@ RUN npm install --only=production --no-audit --no-fund \
 
 # Copy source code
 COPY crawlee-server.js ./
+COPY cron.js ./
+COPY routes/ ./routes/
 
 # Install Playwright browsers after all dependencies are ready
 RUN npx playwright install --with-deps chromium

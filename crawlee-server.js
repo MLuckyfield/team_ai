@@ -60,19 +60,31 @@ app.post('/analyze', async (req, res) => {
             requestHandlerTimeoutSecs: Math.ceil(timeout / 1000) + 5,
             navigationTimeoutSecs: Math.ceil(timeout / 1000),
             
+            // Add explicit storage configuration for container environment
+            persistStorage: false,
+            purgeOnStart: true,
+            
             launchContext: {
                 launchOptions: {
                     headless: true,
                     args: [
                         '--no-sandbox',
                         '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage'
+                        '--disable-dev-shm-usage',
+                        '--disable-gpu',
+                        '--disable-extensions',
+                        '--no-first-run',
+                        '--disable-background-timer-throttling',
+                        '--disable-backgrounding-occluded-windows',
+                        '--disable-renderer-backgrounding'
                     ]
                 }
             },
             
             requestHandler: async ({ page, request, log }) => {
                 try {
+                    console.log(`=== REQUEST HANDLER CALLED ===`);
+                    console.log(`Processing URL: ${request.url}`);
                     log.info(`Processing ${request.url}`);
                     
                     await page.setViewportSize({ width: 1280, height: 720 });
@@ -174,12 +186,32 @@ app.post('/analyze', async (req, res) => {
         global.crawleeResult = null;
 
         console.log('Starting crawler...');
-        await crawler.run([url]);
+        console.log(`Adding URL to queue: ${url}`);
+        
+        // Try different approaches to ensure the request is processed
+        try {
+            // Method 1: Add requests explicitly first
+            await crawler.addRequests([{ url: url, userData: { timeout, waitForSelector } }]);
+            console.log('Request added to queue successfully');
+            
+            console.log('Running crawler...');
+            await crawler.run();
+        } catch (addRequestError) {
+            console.log('Method 1 failed, trying method 2:', addRequestError.message);
+            // Method 2: Use the original run method with URLs
+            await crawler.run([url]);
+        }
+        
         console.log('Crawler finished, checking results...');
+        
+        // Get some statistics for debugging
+        const stats = await crawler.getData();
+        console.log('Crawler statistics:', JSON.stringify(stats, null, 2));
 
         // Check results
         const result = global.crawleeResult;
         if (!result) {
+            console.log('No results found in global.crawleeResult');
             throw new Error('No results returned from crawler');
         }
 
