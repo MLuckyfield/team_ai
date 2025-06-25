@@ -2,18 +2,30 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const { PlaywrightCrawler, CriticalError } = require('crawlee');
+const CronManager = require('./cron');
+const createCronRoutes = require('./routes/cronRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Initialize CronManager
+const cronManager = new CronManager();
 
 // Middleware
 app.use(helmet());
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+// Mount cron routes
+app.use('/cron', createCronRoutes(cronManager));
+
 // Health check endpoint
 app.get('/health', (req, res) => {
-    res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+    res.json({ 
+        status: 'healthy', 
+        timestamp: new Date().toISOString(),
+        cron: cronManager.getStatus()
+    });
 });
 
 // AI-focused endpoint: Get page analysis data (screenshot + HTML) - WORKING VERSION
@@ -216,13 +228,13 @@ app.post('/analyze', async (req, res) => {
 // API documentation endpoint
 app.get('/', (req, res) => {
     res.json({
-        service: 'Crawlee Web Scraping API',
+        service: 'Crawlee Web Scraping API with Cron Triggers',
         version: '1.0.0',
         endpoints: {
             health: {
                 method: 'GET',
                 path: '/health',
-                description: 'Health check endpoint'
+                description: 'Health check endpoint (includes cron status)'
             },
             analyze: {
                 method: 'POST',
@@ -240,8 +252,18 @@ app.get('/', (req, res) => {
                     title: 'Page title',
                     url: 'Processed URL'
                 }
+            },
+            cron: {
+                '/cron/status': 'GET - Cron service status',
+                '/cron/examples': 'GET - Common cron schedule patterns',
+                '/cron/jobs': 'GET - List all cron jobs | POST - Create new cron job',
+                '/cron/jobs/:cronId/:action': 'PATCH - Start/stop specific cron job (action: start|stop)',
+                '/cron/jobs/:cronId': 'DELETE - Delete specific cron job',
+                '/cron/trigger/:webhookId': 'POST - Manually trigger single webhook',
+                '/cron/trigger-multiple': 'POST - Manually trigger multiple webhooks'
             }
-        }
+        },
+        cronManager: cronManager.getStatus()
     });
 });
 

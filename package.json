@@ -5,14 +5,18 @@
   "main": "crawlee-server.js",
   "scripts": {
     "start": "node crawlee-server.js",
-    "dev": "nodemon crawlee-server.js"
+    "dev": "nodemon crawlee-server.js",
+    "test-cron": "node test-cron.js",
+    "cleanup-cron": "node test-cron.js cleanup"
   },
   "dependencies": {
-    "crawlee": "^3.13.0",
-    "playwright": "^1.48.0",
-    "express": "^4.18.2",
+    "axios": "^1.10.0",
     "cors": "^2.8.5",
-    "helmet": "^7.1.0"
+    "crawlee": "^3.13.0",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "node-cron": "^3.0.3",
+    "playwright": "^1.48.0"
   },
   "engines": {
     "node": ">=16.0.0"
@@ -21,8 +25,10 @@
     "crawlee",
     "scraping",
     "api",
-    "n8n"
+    "n8n",
+    "cron",
+    "automation"
   ],
   "author": "",
   "license": "MIT"
-} 
+}
