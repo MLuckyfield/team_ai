@@ -231,7 +231,11 @@ app.post('/analyze', async (req, res) => {
             return res.status(400).json({ error: 'URL is required' });
         }
 
-        let result = {};
+        let result = {
+            url: url,
+            success: false,
+            error: 'Analysis not completed'
+        };
 
         const crawler = new PlaywrightCrawler({
             maxRequestsPerCrawl: 1,
@@ -251,73 +255,119 @@ app.post('/analyze', async (req, res) => {
                 }
             },
             async requestHandler({ page, request, log }) {
-                log.info(`Analyzing page: ${request.url}`);
-                
-                // Set viewport
-                await page.setViewportSize({ width: viewportWidth, height: viewportHeight });
+                try {
+                    log.info(`Analyzing page: ${request.url}`);
+                    
+                    // Set viewport
+                    await page.setViewportSize({ width: viewportWidth, height: viewportHeight });
 
-                // Wait for selector if specified
-                if (waitForSelector) {
-                    try {
-                        await page.waitForSelector(waitForSelector, { timeout: 15000 });
-                        log.info(`Successfully waited for selector: ${waitForSelector}`);
-                    } catch (error) {
-                        log.warning(`Selector ${waitForSelector} not found, continuing anyway`);
+                    // Wait for selector if specified
+                    if (waitForSelector) {
+                        try {
+                            await page.waitForSelector(waitForSelector, { timeout: 15000 });
+                            log.info(`Successfully waited for selector: ${waitForSelector}`);
+                        } catch (error) {
+                            log.warning(`Selector ${waitForSelector} not found, continuing anyway`);
+                        }
+                    } else {
+                        // For pages like Yahoo Finance, wait for network to be mostly idle
+                        try {
+                            await page.waitForLoadState('networkidle', { timeout: 30000 });
+                            log.info('Page network activity settled');
+                        } catch (error) {
+                            log.warning('Network idle timeout, continuing anyway');
+                        }
                     }
-                } else {
-                    // For pages like Yahoo Finance, wait for network to be mostly idle
-                    try {
-                        await page.waitForLoadState('networkidle', { timeout: 30000 });
-                        log.info('Page network activity settled');
-                    } catch (error) {
-                        log.warning('Network idle timeout, continuing anyway');
-                    }
-                }
 
-                // Give page additional time to fully render dynamic content
-                await page.waitForTimeout(3000);
+                    // Give page additional time to fully render dynamic content
+                    await page.waitForTimeout(3000);
 
-                // Get page data for AI analysis
-                result = {
-                    url: request.url,
-                    title: await page.title(),
-                    timestamp: new Date().toISOString(),
-                    viewport: { width: viewportWidth, height: viewportHeight },
+                    // Get page title
+                    const title = await page.title();
+                    log.info(`Page title: ${title}`);
+
                     // Get clean HTML (remove scripts, styles for AI analysis)
-                    html: await page.evaluate(() => {
-                        // Clone the document to avoid modifying the original
-                        const clone = document.cloneNode(true);
-                        // Remove script and style tags for cleaner AI analysis
-                        const scripts = clone.querySelectorAll('script, style, noscript');
-                        scripts.forEach(el => el.remove());
-                        return clone.documentElement.outerHTML;
-                    }),
+                    let html = '';
+                    try {
+                        html = await page.evaluate(() => {
+                            // Clone the document to avoid modifying the original
+                            const clone = document.cloneNode(true);
+                            // Remove script and style tags for cleaner AI analysis
+                            const scripts = clone.querySelectorAll('script, style, noscript');
+                            scripts.forEach(el => el.remove());
+                            return clone.documentElement.outerHTML;
+                        });
+                        log.info(`HTML extracted, length: ${html.length} characters`);
+                    } catch (error) {
+                        log.error(`Failed to extract HTML: ${error.message}`);
+                        // Fallback to basic HTML extraction
+                        html = await page.content();
+                        log.info(`Fallback HTML extracted, length: ${html.length} characters`);
+                    }
+
                     // Get screenshot as base64
-                    screenshot: await page.screenshot({ 
-                        encoding: 'base64',
-                        fullPage: fullPage,
-                        type: 'png'
-                    }),
+                    let screenshot = '';
+                    try {
+                        screenshot = await page.screenshot({ 
+                            encoding: 'base64',
+                            fullPage: fullPage,
+                            type: 'png'
+                        });
+                        log.info(`Screenshot captured, size: ${screenshot.length} characters`);
+                    } catch (error) {
+                        log.error(`Failed to capture screenshot: ${error.message}`);
+                    }
+
                     // Get basic page structure info
-                    pageInfo: await page.evaluate(() => {
-                        return {
-                            hasImages: document.images.length > 0,
-                            hasLinks: document.links.length > 0,
-                            hasForms: document.forms.length > 0,
-                            hasHeadings: document.querySelectorAll('h1, h2, h3, h4, h5, h6').length > 0,
-                            hasLists: document.querySelectorAll('ul, ol').length > 0,
-                            hasTables: document.querySelectorAll('table').length > 0,
-                            totalElements: document.querySelectorAll('*').length
-                        };
-                    })
-                };
+                    let pageInfo = {};
+                    try {
+                        pageInfo = await page.evaluate(() => {
+                            return {
+                                hasImages: document.images.length > 0,
+                                hasLinks: document.links.length > 0,
+                                hasForms: document.forms.length > 0,
+                                hasHeadings: document.querySelectorAll('h1, h2, h3, h4, h5, h6').length > 0,
+                                hasLists: document.querySelectorAll('ul, ol').length > 0,
+                                hasTables: document.querySelectorAll('table').length > 0,
+                                totalElements: document.querySelectorAll('*').length
+                            };
+                        });
+                        log.info(`Page info extracted: ${JSON.stringify(pageInfo)}`);
+                    } catch (error) {
+                        log.error(`Failed to extract page info: ${error.message}`);
+                    }
+
+                    // Build successful result
+                    result = {
+                        success: true,
+                        url: request.url,
+                        title: title,
+                        timestamp: new Date().toISOString(),
+                        viewport: { width: viewportWidth, height: viewportHeight },
+                        html: html,
+                        screenshot: screenshot,
+                        pageInfo: pageInfo
+                    };
+
+                    log.info(`Analysis completed successfully for ${request.url}`);
+
+                } catch (error) {
+                    log.error(`Error in requestHandler: ${error.message}`);
+                    result = {
+                        success: false,
+                        url: request.url,
+                        error: `Request handler error: ${error.message}`,
+                        timestamp: new Date().toISOString()
+                    };
+                }
             },
             failedRequestHandler({ request, log }) {
                 log.error(`Failed to analyze ${request.url}`);
                 result = {
+                    success: false,
                     url: request.url,
                     error: 'Failed to load page',
-                    success: false
+                    timestamp: new Date().toISOString()
                 };
             }
         });
@@ -325,20 +375,19 @@ app.post('/analyze', async (req, res) => {
         await crawler.addRequests([{ url }]);
         await crawler.run();
 
-        if (result.error) {
-            return res.status(500).json(result);
+        // Always return the result, whether successful or not
+        if (result.success) {
+            res.json(result);
+        } else {
+            res.status(500).json(result);
         }
-
-        res.json({
-            success: true,
-            ...result
-        });
 
     } catch (error) {
         console.error('Analysis error:', error);
         res.status(500).json({
             success: false,
-            error: error.message
+            error: error.message,
+            timestamp: new Date().toISOString()
         });
     }
 });
