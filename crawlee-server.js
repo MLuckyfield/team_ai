@@ -218,6 +218,8 @@ app.post('/extract', async (req, res) => {
 
 // AI-focused endpoint: Get page analysis data (screenshot + HTML)
 app.post('/analyze', async (req, res) => {
+    let crawler = null;
+    
     try {
         const { 
             url, 
@@ -231,17 +233,25 @@ app.post('/analyze', async (req, res) => {
             return res.status(400).json({ error: 'URL is required' });
         }
 
-        let result = {
+        // Use a unique result object for this request to avoid any shared state issues
+        let requestResult = {
             url: url,
             success: false,
             error: 'Analysis not completed - no request processed'
         };
 
-        // Create a new crawler instance for each request to avoid reuse issues
-        const crawler = new PlaywrightCrawler({
+        // Create a completely fresh crawler instance for each request
+        crawler = new PlaywrightCrawler({
             maxRequestsPerCrawl: 1,
             headless: true,
             requestHandlerTimeoutSecs: 120, // Increase timeout to 2 minutes
+            // Force browser to close after each request
+            maxConcurrency: 1,
+            browserPoolOptions: {
+                // Don't reuse browser instances
+                maxOpenPagesPerBrowser: 1,
+                retireBrowserAfterPageCount: 1,
+            },
             launchContext: {
                 launchOptions: {
                     args: [
@@ -251,7 +261,10 @@ app.post('/analyze', async (req, res) => {
                         '--disable-accelerated-2d-canvas',
                         '--no-first-run',
                         '--no-zygote',
-                        '--disable-gpu'
+                        '--disable-gpu',
+                        '--disable-background-timer-throttling',
+                        '--disable-backgrounding-occluded-windows',
+                        '--disable-renderer-backgrounding'
                     ]
                 }
             },
@@ -382,7 +395,7 @@ app.post('/analyze', async (req, res) => {
                     }
 
                                     // Build successful result
-                result = {
+                requestResult = {
                     success: true,
                     url: request.url,
                     title: title,
@@ -403,7 +416,7 @@ app.post('/analyze', async (req, res) => {
 
                 } catch (error) {
                     log.error(`Error in requestHandler: ${error.message}`);
-                    result = {
+                    requestResult = {
                         success: false,
                         url: request.url,
                         error: `Analysis failed - Request handler error: ${error.message}`,
@@ -414,7 +427,7 @@ app.post('/analyze', async (req, res) => {
             },
             failedRequestHandler({ request, log }) {
                 log.error(`Failed to analyze ${request.url}`);
-                result = {
+                requestResult = {
                     success: false,
                     url: request.url,
                     error: 'Analysis failed - Unable to load page (network or browser error)',
@@ -429,7 +442,7 @@ app.post('/analyze', async (req, res) => {
             await crawler.run();
         } catch (crawlerError) {
             console.error('Crawler execution error:', crawlerError);
-            result = {
+            requestResult = {
                 success: false,
                 url: url,
                 error: `Analysis failed - Crawler error: ${crawlerError.message}`,
@@ -438,18 +451,21 @@ app.post('/analyze', async (req, res) => {
             };
         } finally {
             // Ensure crawler is properly cleaned up
-            try {
-                await crawler.teardown();
-            } catch (teardownError) {
-                console.warn('Crawler teardown warning:', teardownError.message);
+            if (crawler) {
+                try {
+                    await crawler.teardown();
+                    console.log('Crawler teardown completed successfully');
+                } catch (teardownError) {
+                    console.warn('Crawler teardown warning:', teardownError.message);
+                }
             }
         }
 
         // Always return the result, whether successful or not
-        if (result.success) {
-            res.json(result);
+        if (requestResult.success) {
+            res.json(requestResult);
         } else {
-            res.status(500).json(result);
+            res.status(500).json(requestResult);
         }
 
     } catch (error) {
