@@ -261,49 +261,92 @@ app.post('/analyze', async (req, res) => {
                     // Set viewport
                     await page.setViewportSize({ width: viewportWidth, height: viewportHeight });
 
-                    // Wait for selector if specified
-                    if (waitForSelector) {
+                                    // Wait for selector if specified, but don't fail if it doesn't exist
+                let selectorFound = false;
+                if (waitForSelector) {
+                    try {
+                        await page.waitForSelector(waitForSelector, { timeout: 15000 });
+                        log.info(`Successfully waited for selector: ${waitForSelector}`);
+                        selectorFound = true;
+                    } catch (error) {
+                        log.warning(`Selector ${waitForSelector} not found within 15s, continuing with page load anyway`);
+                        // Still try to wait for basic page load
                         try {
-                            await page.waitForSelector(waitForSelector, { timeout: 15000 });
-                            log.info(`Successfully waited for selector: ${waitForSelector}`);
-                        } catch (error) {
-                            log.warning(`Selector ${waitForSelector} not found, continuing anyway`);
-                        }
-                    } else {
-                        // For pages like Yahoo Finance, wait for network to be mostly idle
-                        try {
-                            await page.waitForLoadState('networkidle', { timeout: 30000 });
-                            log.info('Page network activity settled');
-                        } catch (error) {
-                            log.warning('Network idle timeout, continuing anyway');
+                            await page.waitForLoadState('domcontentloaded', { timeout: 10000 });
+                            log.info('Page DOM content loaded');
+                        } catch (loadError) {
+                            log.warning('DOM content load timeout, continuing anyway');
                         }
                     }
+                } else {
+                    // No specific selector - wait for network to be mostly idle
+                    try {
+                        await page.waitForLoadState('networkidle', { timeout: 30000 });
+                        log.info('Page network activity settled');
+                    } catch (error) {
+                        log.warning('Network idle timeout, continuing anyway');
+                        // Fallback to DOM content loaded
+                        try {
+                            await page.waitForLoadState('domcontentloaded', { timeout: 10000 });
+                            log.info('Page DOM content loaded as fallback');
+                        } catch (loadError) {
+                            log.warning('DOM content load timeout, continuing anyway');
+                        }
+                    }
+                }
 
-                    // Give page additional time to fully render dynamic content
-                    await page.waitForTimeout(3000);
+                                    // Give page additional time to fully render dynamic content
+                // Use longer wait if selector wasn't found to give more time for dynamic content
+                const waitTime = selectorFound ? 2000 : 5000;
+                await page.waitForTimeout(waitTime);
+                log.info(`Waited ${waitTime}ms for dynamic content to load`);
 
                     // Get page title
                     const title = await page.title();
                     log.info(`Page title: ${title}`);
 
-                    // Get clean HTML (remove scripts, styles for AI analysis)
-                    let html = '';
+                                    // Get clean HTML (remove scripts, styles for AI analysis)
+                let html = '';
+                let htmlExtractionMethod = 'unknown';
+                
+                // Try multiple strategies to get HTML content
+                try {
+                    // Strategy 1: Clean HTML with scripts/styles removed
+                    html = await page.evaluate(() => {
+                        // Clone the document to avoid modifying the original
+                        const clone = document.cloneNode(true);
+                        // Remove script and style tags for cleaner AI analysis
+                        const scripts = clone.querySelectorAll('script, style, noscript');
+                        scripts.forEach(el => el.remove());
+                        return clone.documentElement.outerHTML;
+                    });
+                    htmlExtractionMethod = 'clean_html';
+                    log.info(`Clean HTML extracted, length: ${html.length} characters`);
+                } catch (error) {
+                    log.warning(`Failed to extract clean HTML: ${error.message}`);
+                    
                     try {
-                        html = await page.evaluate(() => {
-                            // Clone the document to avoid modifying the original
-                            const clone = document.cloneNode(true);
-                            // Remove script and style tags for cleaner AI analysis
-                            const scripts = clone.querySelectorAll('script, style, noscript');
-                            scripts.forEach(el => el.remove());
-                            return clone.documentElement.outerHTML;
-                        });
-                        log.info(`HTML extracted, length: ${html.length} characters`);
-                    } catch (error) {
-                        log.error(`Failed to extract HTML: ${error.message}`);
-                        // Fallback to basic HTML extraction
+                        // Strategy 2: Full page content
                         html = await page.content();
-                        log.info(`Fallback HTML extracted, length: ${html.length} characters`);
+                        htmlExtractionMethod = 'full_content';
+                        log.info(`Full page content extracted, length: ${html.length} characters`);
+                    } catch (contentError) {
+                        log.warning(`Failed to get page content: ${contentError.message}`);
+                        
+                        try {
+                            // Strategy 3: Just the body content
+                            html = await page.evaluate(() => {
+                                return document.body ? document.body.outerHTML : document.documentElement.outerHTML;
+                            });
+                            htmlExtractionMethod = 'body_content';
+                            log.info(`Body content extracted, length: ${html.length} characters`);
+                        } catch (bodyError) {
+                            log.error(`All HTML extraction methods failed: ${bodyError.message}`);
+                            html = '<html><body>HTML extraction failed</body></html>';
+                            htmlExtractionMethod = 'extraction_failed';
+                        }
                     }
+                }
 
                     // Get screenshot as base64
                     let screenshot = '';
@@ -337,17 +380,23 @@ app.post('/analyze', async (req, res) => {
                         log.error(`Failed to extract page info: ${error.message}`);
                     }
 
-                    // Build successful result
-                    result = {
-                        success: true,
-                        url: request.url,
-                        title: title,
-                        timestamp: new Date().toISOString(),
-                        viewport: { width: viewportWidth, height: viewportHeight },
-                        html: html,
-                        screenshot: screenshot,
-                        pageInfo: pageInfo
-                    };
+                                    // Build successful result
+                result = {
+                    success: true,
+                    url: request.url,
+                    title: title,
+                    timestamp: new Date().toISOString(),
+                    viewport: { width: viewportWidth, height: viewportHeight },
+                    html: html,
+                    screenshot: screenshot,
+                    pageInfo: pageInfo,
+                    extractionInfo: {
+                        waitForSelector: waitForSelector || null,
+                        selectorFound: selectorFound,
+                        htmlExtractionMethod: htmlExtractionMethod,
+                        htmlLength: html.length
+                    }
+                };
 
                     log.info(`Analysis completed successfully for ${request.url}`);
 
