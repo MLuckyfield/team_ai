@@ -63,16 +63,6 @@ app.post('/analyze', async (req, res) => {
             requestHandlerTimeoutSecs: Math.ceil(timeout / 1000) + 5,
             navigationTimeoutSecs: Math.ceil(timeout / 1000),
             
-            // Force memory storage in containers to avoid persistent storage issues
-            ...(isContainer && {
-                requestQueueOptions: {
-                    forceCloud: false,
-                    clientOptions: {
-                        forceMemoryStorage: true
-                    }
-                }
-            }),
-            
             launchContext: {
                 launchOptions: {
                     headless: true,
@@ -200,26 +190,30 @@ app.post('/analyze', async (req, res) => {
 
         console.log('Starting crawler...');
         
-        // In container environments, validate browser can start
-        if (process.env.NODE_ENV === 'production') {
-            console.log('Container environment detected, pre-validating browser startup...');
-            try {
-                const testBrowser = await crawler.launchContext.launchOptions();
-                console.log('Browser startup validation successful');
-            } catch (browserError) {
-                console.error('Browser startup validation failed:', browserError.message);
-                throw new Error(`Browser cannot start in container: ${browserError.message}`);
-            }
-        }
+        // Add detailed logging for debugging
+        console.log('Container environment:', process.env.NODE_ENV === 'production')
         
         console.log(`Running crawler with URL: ${url}`);
+        
+        // Add debugging before crawler run
+        console.log('About to start crawler.run()...');
+        const startTime = Date.now();
+        
         await crawler.run([url]);
         
-        console.log('Crawler finished, checking results...');
+        const endTime = Date.now();
+        console.log(`Crawler finished after ${endTime - startTime}ms, checking results...`);
         
         // Get some statistics for debugging
         const stats = await crawler.getData();
         console.log('Crawler statistics:', JSON.stringify(stats, null, 2));
+        
+        // Check crawler state
+        console.log('Crawler stats summary:');
+        console.log('- Total requests:', stats.requestsFinished + stats.requestsFailed + stats.requestsFailedPerMinute);
+        console.log('- Requests finished:', stats.requestsFinished);
+        console.log('- Requests failed:', stats.requestsFailed);
+        console.log('- Retry histogram:', JSON.stringify(stats.retryHistogram));
 
         // Check results
         const result = global.crawleeResult;
