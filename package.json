@@ -7,7 +7,8 @@
     "start": "node crawlee-server.js",
     "dev": "nodemon crawlee-server.js",
     "test-cron": "node test-cron.js",
-    "cleanup-cron": "node test-cron.js cleanup"
+    "cleanup-cron": "node test-cron.js cleanup",
+    "test-youtube": "node test-youtube.js"
   },
   "dependencies": {
     "axios": "^1.10.0",
