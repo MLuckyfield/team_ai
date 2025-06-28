@@ -541,16 +541,33 @@ async function handleChannelVideosPage(page, request, log, maxVideos, includeSho
                 
                 videoElements.forEach(element => {
                     const href = element.href;
-                    const title = element.querySelector('#video-title')?.textContent?.trim() ||
-                                element.getAttribute('title') ||
-                                element.textContent?.trim();
+                    
+                    // Try multiple selectors for video title
+                    let title = element.querySelector('#video-title')?.textContent?.trim() ||
+                               element.querySelector('#video-title-link')?.textContent?.trim() ||
+                               element.querySelector('h3')?.textContent?.trim() ||
+                               element.querySelector('.ytd-rich-grid-media #video-title')?.textContent?.trim() ||
+                               element.getAttribute('title') ||
+                               element.getAttribute('aria-label');
+                    
+                    // Clean up title - remove duration and other metadata
+                    if (title) {
+                        // Remove duration patterns like "45:07", "1:23:45", etc.
+                        title = title.replace(/^\d{1,2}:\d{2}(:\d{2})?\s*/, '').trim();
+                        // Remove "Now playing" text
+                        title = title.replace(/Now playing\s*/i, '').trim();
+                        // Remove extra whitespace
+                        title = title.replace(/\s+/g, ' ').trim();
+                    }
                     
                     // Check if it's a short video
                     const isShort = element.closest('[is-short]') || 
                                   element.closest('.ytd-rich-grid-slim-media') ||
+                                  element.closest('#shorts-container') ||
                                   href.includes('/shorts/');
                     
-                    if (href && title && (includeShorts || !isShort)) {
+                    // Only include if we have a meaningful title (not just duration)
+                    if (href && title && title.length > 3 && (includeShorts || !isShort)) {
                         links.push({
                             url: href.split('&')[0], // Clean URL
                             title: title,
@@ -589,10 +606,27 @@ async function handleChannelVideosPage(page, request, log, maxVideos, includeSho
         for (const video of videoList) {
             try {
                 console.log(`Processing video: ${video.title}`);
-                await page.goto(video.url, { waitUntil: 'networkidle', timeout: 30000 });
-                await page.waitForTimeout(getRandomDelay(2000, 4000));
+                
+                // Navigate with shorter timeout and better error handling
+                await page.goto(video.url, { 
+                    waitUntil: 'domcontentloaded', 
+                    timeout: 20000 
+                });
+                
+                // Wait for page to stabilize
+                await page.waitForTimeout(getRandomDelay(1000, 2000));
 
-                const transcript = await extractTranscript(page);
+                // Extract transcript with timeout protection
+                const transcriptPromise = extractTranscript(page);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Transcript extraction timeout')), 30000)
+                );
+                
+                const transcript = await Promise.race([transcriptPromise, timeoutPromise])
+                    .catch(error => {
+                        console.log(`Transcript extraction failed for ${video.title}: ${error.message}`);
+                        return null;
+                    });
                 
                 results.videos.push({
                     title: video.title,
@@ -602,8 +636,10 @@ async function handleChannelVideosPage(page, request, log, maxVideos, includeSho
                     hasTranscript: !!transcript
                 });
 
+                console.log(`✅ Completed ${video.title} - transcript: ${transcript ? 'found' : 'not found'}`);
+
                 // Random delay between videos to avoid detection
-                await page.waitForTimeout(getRandomDelay(3000, 6000));
+                await page.waitForTimeout(getRandomDelay(2000, 4000));
 
             } catch (videoError) {
                 console.error(`Error processing video ${video.title}:`, videoError.message);
@@ -629,81 +665,168 @@ async function handleChannelVideosPage(page, request, log, maxVideos, includeSho
 // Extract transcript from video page
 async function extractTranscript(page) {
     try {
-        // Wait for video to load
-        await page.waitForSelector('video', { timeout: 15000 });
+        console.log('Starting transcript extraction...');
         
-        // Look for transcript button/menu
+        // Wait for page basic elements, not the video itself
+        await page.waitForSelector('#movie_player, #player-container, #player', { timeout: 10000 });
+        console.log('Player container found');
+        
+        // Wait a bit for page to stabilize
+        await page.waitForTimeout(2000);
+        
+        // Try multiple approaches to find and open transcript
+        let transcriptOpened = false;
+        
+        // Method 1: Look for direct transcript button
         const transcriptSelectors = [
-            'button[aria-label*="transcript"]',
-            'button[aria-label*="Transcript"]',
-            '[aria-label*="Show transcript"]',
-            'yt-button-renderer[aria-label*="transcript"]'
+            'button[aria-label*="transcript" i]',
+            'button[aria-label*="Transcript" i]',
+            'yt-button-renderer[aria-label*="transcript" i]',
+            '[data-tooltip-text*="transcript" i]'
         ];
 
-        let transcriptButton = null;
         for (const selector of transcriptSelectors) {
             try {
-                transcriptButton = await page.waitForSelector(selector, { timeout: 3000 });
-                if (transcriptButton) break;
+                const button = await page.$(selector);
+                if (button) {
+                    console.log(`Found transcript button with selector: ${selector}`);
+                    await button.click();
+                    await page.waitForTimeout(2000);
+                    transcriptOpened = true;
+                    break;
+                }
             } catch (e) {
                 continue;
             }
         }
 
-        if (!transcriptButton) {
-            // Try to find transcript in the description or comments area
-            const moreActionsButton = await page.$('button[aria-label="More actions"]');
-            if (moreActionsButton) {
-                await moreActionsButton.click();
-                await page.waitForTimeout(1000);
-                
-                const showTranscriptButton = await page.$('text="Show transcript"');
-                if (showTranscriptButton) {
-                    await showTranscriptButton.click();
-                    await page.waitForTimeout(2000);
+        // Method 2: Try the three-dot menu approach
+        if (!transcriptOpened) {
+            try {
+                console.log('Trying three-dot menu approach...');
+                const moreButton = await page.$('button[aria-label*="More actions"], button[aria-label*="more actions"], yt-icon-button[aria-label*="More actions"]');
+                if (moreButton) {
+                    await moreButton.click();
+                    await page.waitForTimeout(1000);
+                    
+                    // Look for "Show transcript" or "Open transcript" option
+                    const transcriptMenuItems = [
+                        'text="Show transcript"',
+                        'text="Open transcript"', 
+                        '[role="menuitem"]:has-text("transcript")',
+                        'yt-formatted-string:has-text("transcript")'
+                    ];
+                    
+                    for (const menuItem of transcriptMenuItems) {
+                        try {
+                            const item = await page.$(menuItem);
+                            if (item) {
+                                console.log(`Found transcript menu item: ${menuItem}`);
+                                await item.click();
+                                await page.waitForTimeout(2000);
+                                transcriptOpened = true;
+                                break;
+                            }
+                        } catch (e) {
+                            continue;
+                        }
+                    }
                 }
+            } catch (e) {
+                console.log('Three-dot menu approach failed:', e.message);
             }
-        } else {
-            await transcriptButton.click();
-            await page.waitForTimeout(2000);
         }
 
-        // Extract transcript text
+        // Method 3: Check if transcript panel is already visible
+        if (!transcriptOpened) {
+            console.log('Checking if transcript panel is already visible...');
+            const existingTranscript = await page.$('#transcript, .ytd-transcript-renderer, [role="region"][aria-label*="transcript"]');
+            if (existingTranscript) {
+                console.log('Transcript panel already visible');
+                transcriptOpened = true;
+            }
+        }
+
+        if (!transcriptOpened) {
+            console.log('Could not open transcript panel');
+            return null;
+        }
+
+        // Wait for transcript content to load
+        await page.waitForTimeout(3000);
+
+        // Extract transcript text with multiple fallback strategies
         const transcript = await page.evaluate(() => {
-            // Look for various transcript container selectors
-            const transcriptSelectors = [
-                '[role="region"][aria-label*="transcript"]',
+            console.log('Evaluating transcript extraction...');
+            
+            // Strategy 1: Look for transcript container
+            const transcriptContainers = [
+                '#transcript',
                 '.ytd-transcript-renderer',
-                '.ytd-transcript-segment-renderer',
+                '[role="region"][aria-label*="transcript"]',
+                '.ytd-transcript-segment-list-renderer',
                 '[data-testid="transcript"]'
             ];
 
-            for (const selector of transcriptSelectors) {
-                const container = document.querySelector(selector);
+            for (const containerSelector of transcriptContainers) {
+                const container = document.querySelector(containerSelector);
                 if (container) {
-                    const segments = container.querySelectorAll('[role="button"]') || 
-                                   container.querySelectorAll('.segment') ||
-                                   container.querySelectorAll('.ytd-transcript-segment-renderer');
+                    console.log(`Found transcript container: ${containerSelector}`);
                     
-                    if (segments.length > 0) {
-                        return Array.from(segments).map(segment => {
-                            const time = segment.querySelector('.timestamp')?.textContent?.trim() || '';
-                            const text = segment.textContent?.replace(time, '').trim() || '';
-                            return { time, text };
-                        }).filter(item => item.text);
-                    } else {
-                        return container.textContent?.trim() || null;
+                    // Look for individual segments
+                    const segmentSelectors = [
+                        '.ytd-transcript-segment-renderer',
+                        '[role="button"].segment',
+                        '.transcript-segment',
+                        'div[data-start-time]'
+                    ];
+                    
+                    for (const segmentSelector of segmentSelectors) {
+                        const segments = container.querySelectorAll(segmentSelector);
+                        if (segments.length > 0) {
+                            console.log(`Found ${segments.length} transcript segments`);
+                            return Array.from(segments).map(segment => {
+                                // Try to extract timestamp
+                                const timeElement = segment.querySelector('.ytd-transcript-segment-renderer [role="button"] div:first-child, .timestamp, [data-start-time]');
+                                const time = timeElement ? timeElement.textContent?.trim() || timeElement.getAttribute('data-start-time') : '';
+                                
+                                // Extract text content
+                                const textElement = segment.querySelector('.ytd-transcript-segment-renderer [role="button"] div:last-child, .text');
+                                let text = textElement ? textElement.textContent?.trim() : segment.textContent?.trim();
+                                
+                                // Clean up text by removing timestamp if it's included
+                                if (time && text) {
+                                    text = text.replace(time, '').trim();
+                                }
+                                
+                                return { time: time || '', text: text || '' };
+                            }).filter(item => item.text && item.text.length > 0);
+                        }
+                    }
+                    
+                    // Fallback: get all text from container
+                    const allText = container.textContent?.trim();
+                    if (allText && allText.length > 50) {
+                        console.log('Using fallback text extraction');
+                        return allText;
                     }
                 }
             }
 
+            console.log('No transcript content found');
             return null;
         });
+
+        if (transcript && transcript.length > 0) {
+            console.log(`Successfully extracted transcript with ${Array.isArray(transcript) ? transcript.length : 'text'} segments`);
+        } else {
+            console.log('No transcript content extracted');
+        }
 
         return transcript;
 
     } catch (error) {
-        console.log('No transcript available or error extracting:', error.message);
+        console.log('Transcript extraction error:', error.message);
         return null;
     }
 }
