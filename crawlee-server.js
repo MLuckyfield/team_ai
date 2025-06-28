@@ -346,6 +346,7 @@ app.post('/youtube-transcripts', async (req, res) => {
                         '--force-color-profile=srgb',
                         '--metrics-recording-only',
                         '--disable-background-networking',
+                        `--user-agent=${getRandomUserAgent()}`,
                         ...(isContainer ? [
                             '--disable-gpu',
                             '--no-zygote',
@@ -357,54 +358,64 @@ app.post('/youtube-transcripts', async (req, res) => {
 
             preNavigationHooks: [
                 async ({ page, request }) => {
-                    // Set random user agent
-                    await page.setUserAgent(getRandomUserAgent());
-                    
-                    // Set viewport to common resolution
-                    await page.setViewportSize({ 
-                        width: 1920 + Math.floor(Math.random() * 100), 
-                        height: 1080 + Math.floor(Math.random() * 100) 
-                    });
+                    try {
+                        // Set random user agent - use correct Playwright API
+                        const userAgent = getRandomUserAgent();
+                        await page.context().addInitScript(`
+                            Object.defineProperty(navigator, 'userAgent', {
+                                get: () => '${userAgent}',
+                            });
+                        `);
+                        
+                        // Set viewport to common resolution
+                        await page.setViewportSize({ 
+                            width: 1920 + Math.floor(Math.random() * 100), 
+                            height: 1080 + Math.floor(Math.random() * 100) 
+                        });
 
-                    // Override webdriver detection
-                    await page.addInitScript(() => {
-                        Object.defineProperty(navigator, 'webdriver', {
-                            get: () => undefined,
+                        // Override webdriver detection
+                        await page.addInitScript(() => {
+                            Object.defineProperty(navigator, 'webdriver', {
+                                get: () => undefined,
+                            });
+                            
+                            // Remove automation indicators
+                            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
+                            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+                            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+                            
+                            // Override plugins
+                            Object.defineProperty(navigator, 'plugins', {
+                                get: () => [1, 2, 3, 4, 5],
+                            });
+                            
+                            // Override languages
+                            Object.defineProperty(navigator, 'languages', {
+                                get: () => ['en-US', 'en'],
+                            });
+                            
+                            // Override permissions
+                            const originalQuery = window.navigator.permissions.query;
+                            window.navigator.permissions.query = (parameters) => (
+                                parameters.name === 'notifications' ?
+                                    Promise.resolve({ state: Notification.permission }) :
+                                    originalQuery(parameters)
+                            );
                         });
-                        
-                        // Remove automation indicators
-                        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
-                        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
-                        delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
-                        
-                        // Override plugins
-                        Object.defineProperty(navigator, 'plugins', {
-                            get: () => [1, 2, 3, 4, 5],
-                        });
-                        
-                        // Override languages
-                        Object.defineProperty(navigator, 'languages', {
-                            get: () => ['en-US', 'en'],
-                        });
-                        
-                        // Override permissions
-                        const originalQuery = window.navigator.permissions.query;
-                        window.navigator.permissions.query = (parameters) => (
-                            parameters.name === 'notifications' ?
-                                Promise.resolve({ state: Notification.permission }) :
-                                originalQuery(parameters)
-                        );
-                    });
 
-                    // Set extra headers to look more like a real browser
-                    await page.setExtraHTTPHeaders({
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                        'Accept-Encoding': 'gzip, deflate, br',
-                        'DNT': '1',
-                        'Connection': 'keep-alive',
-                        'Upgrade-Insecure-Requests': '1',
-                    });
+                        // Set extra headers to look more like a real browser
+                        await page.setExtraHTTPHeaders({
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.9',
+                            'Accept-Encoding': 'gzip, deflate, br',
+                            'DNT': '1',
+                            'Connection': 'keep-alive',
+                            'Upgrade-Insecure-Requests': '1',
+                            'User-Agent': userAgent
+                        });
+                    } catch (error) {
+                        console.log('Pre-navigation hook error (non-critical):', error.message);
+                    }
                 }
             ],
             
@@ -424,13 +435,18 @@ app.post('/youtube-transcripts', async (req, res) => {
                     } else {
                         // Channel main page - redirect to videos
                         const channelUrl = buildChannelUrl(channelId, channelHandle);
-                        await page.goto(`${channelUrl}/videos`, { waitUntil: 'networkidle' });
+                        await page.goto(`${channelUrl}/videos`, { 
+                            waitUntil: 'networkidle',
+                            timeout: timeout 
+                        });
                         await handleChannelVideosPage(page, request, log, maxVideos, includeShorts, results);
                     }
 
                 } catch (error) {
                     console.error('Request handler error:', error);
+                    log.error(`Request handler error: ${error.message}`);
                     results.errors.push(`Error processing ${request.url}: ${error.message}`);
+                    // Don't throw, just continue with errors logged
                 }
             },
 
